@@ -11,7 +11,7 @@ import asyncpg
 import ssl
 
 # 🔑 TOKEN VA ADMIN ID
-API_TOKEN = "8520385805:AAHjOr3ThLFwjLepdS_9hNupgtwvg-tlALI"
+API_TOKEN = "8401942831:AAF7rQa6UC7YGNyIk9gdx1XnaiyxZlt5lJA"
 ADMIN_ID = 496829881  # Admin Telegram ID
 
 # 🔧 Bot sozlamalari
