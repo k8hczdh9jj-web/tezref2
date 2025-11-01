@@ -19,11 +19,11 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # 🌐 Postgres DATABASE_URL (Heroku dan olinadi)
-DATABASE_URL = os.getenv("postgres://udc9pgcomhsrp8:p9db480dc970a9cbdfffac5b2e765f086f81a19e5c09030c10351ab18df16406e@c3v5n5ajfopshl.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d60vqb4h1327ga")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # 🧩 Postgres bilan bog‘lanish
 async def get_db_pool():
-    return await asyncpg.create_pool(DATABASE_URL)
+    return await asyncpg.create_pool(DATABASE_URL, ssl='require')
 
 # 🔰 Foydalanuvchini bazaga qo‘shish yoki yangilash
 async def register_user(pool, user_id, username, invited_by=None):
