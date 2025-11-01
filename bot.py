@@ -6,8 +6,9 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-import sqlite3
 import asyncio
+import os
+import asyncpg
 
 # 🔑 TOKEN VA ADMIN ID
 API_TOKEN = "8520385805:AAHjOr3ThLFwjLepdS_9hNupgtwvg-tlALI"
@@ -18,38 +19,23 @@ bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTM
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# 🧩 Database funksiyasi
-def get_db():
-    conn = sqlite3.connect("tezref.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            balance INTEGER DEFAULT 0,
-            referrals INTEGER DEFAULT 0,
-            level TEXT DEFAULT 'Oddiy',
-            ref_code TEXT UNIQUE,
-            invited_by INTEGER,
-            blocked INTEGER DEFAULT 0
-        )
-    """)
-    conn.commit()
-    return conn, cursor
+# 🌐 Postgres DATABASE_URL (Heroku dan olinadi)
+DATABASE_URL = os.getenv("postgres://udc9pgcomhsrp8:p9db480dc970a9cbdfffac5b2e765f086f81a19e5c09030c10351ab18df16406e@c3v5n5ajfopshl.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com:5432/d60vqb4h1327ga")
+
+# 🧩 Postgres bilan bog‘lanish
+async def get_db_pool():
+    return await asyncpg.create_pool(DATABASE_URL)
 
 # 🔰 Foydalanuvchini bazaga qo‘shish yoki yangilash
-def register_user(user_id, username, invited_by=None):
-    conn, cursor = get_db()
-    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
-    user = cursor.fetchone()
-    if user is None:
-        ref_code = str(user_id)
-        cursor.execute("""
-            INSERT INTO users (user_id, username, ref_code, invited_by)
-            VALUES (?, ?, ?, ?)
-        """, (user_id, username, ref_code, invited_by))
-        conn.commit()
-    conn.close()
+async def register_user(pool, user_id, username, invited_by=None):
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT user_id FROM users WHERE user_id = $1", user_id)
+        if not user:
+            ref_code = str(user_id)
+            await conn.execute(
+                "INSERT INTO users(user_id, username, ref_code, invited_by) VALUES($1, $2, $3, $4)",
+                user_id, username, ref_code, invited_by
+            )
 
 # 🧮 Darajani hisoblash
 def calculate_level(refs):
@@ -77,35 +63,46 @@ def main_menu():
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
+# 🛠 Database yaratish (agar hali yo‘q bo‘lsa)
+async def init_db(pool):
+    async with pool.acquire() as conn:
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id BIGINT PRIMARY KEY,
+            username TEXT,
+            balance BIGINT DEFAULT 0,
+            referrals INTEGER DEFAULT 0,
+            level TEXT DEFAULT 'Oddiy',
+            ref_code TEXT UNIQUE,
+            invited_by BIGINT,
+            blocked INTEGER DEFAULT 0
+        )
+        """)
+
 # 🔰 /start komandasi
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
+    pool = await get_db_pool()
+    await init_db(pool)
+
     user_id = message.from_user.id
     username = message.from_user.username or "NoName"
     args = message.text.split()
     invited_by = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
-    register_user(user_id, username, invited_by)
+    await register_user(pool, user_id, username, invited_by)
 
-    # Bonus for inviter
     if invited_by and invited_by != user_id:
-        conn, cursor = get_db()
-        cursor.execute("SELECT * FROM users WHERE user_id = ?", (invited_by,))
-        inviter = cursor.fetchone()
-        if inviter:
-            cursor.execute("""
-                UPDATE users 
-                SET balance = balance + 5000, referrals = referrals + 1 
-                WHERE user_id = ?
-            """, (invited_by,))
-            conn.commit()
-
-            cursor.execute("SELECT referrals FROM users WHERE user_id = ?", (invited_by,))
-            ref_count = cursor.fetchone()[0]
-            new_level = calculate_level(ref_count)
-            cursor.execute("UPDATE users SET level = ? WHERE user_id = ?", (new_level, invited_by))
-            conn.commit()
-        conn.close()
+        async with pool.acquire() as conn:
+            inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", invited_by)
+            if inviter:
+                await conn.execute(
+                    "UPDATE users SET balance = balance + 5000, referrals = referrals + 1 WHERE user_id = $1",
+                    invited_by
+                )
+                ref_count = inviter['referrals'] + 1
+                new_level = calculate_level(ref_count)
+                await conn.execute("UPDATE users SET level = $1 WHERE user_id = $2", new_level, invited_by)
 
     await message.answer(
         f"👋 Salom, <b>{message.from_user.first_name}</b>!\n\n"
@@ -117,26 +114,24 @@ async def start_cmd(message: types.Message):
 # 📢 Referal havola
 @dp.message(F.text.lower().contains("referal"))
 async def referral_link(message: types.Message):
-    user_id = message.from_user.id
     me = await bot.get_me()
-    link = f"https://t.me/{me.username}?start={user_id}"
+    link = f"https://t.me/{me.username}?start={message.from_user.id}"
     await message.answer(
         f"📢 Har bir do‘st taklifi uchun sizga <b>5000 so‘m</b> beriladi!:\n<a href='{link}'>{link}</a>\n\n"
-    "Havolani do‘satingizga jo‘nating!",
-    parse_mode=ParseMode.HTML
-)
+        "Havolani do‘stlaringizga jo‘nating!",
+        parse_mode=ParseMode.HTML
+    )
 
 # 📊 Statistika
 @dp.message(F.text.lower().contains("statistika"))
 async def stats_cmd(message: types.Message):
-    user_id = message.from_user.id
-    conn, cursor = get_db()
-    cursor.execute("SELECT balance, referrals, level, blocked FROM users WHERE user_id = ?", (user_id,))
-    user = cursor.fetchone()
-    conn.close()
-
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow(
+            "SELECT balance, referrals, level, blocked FROM users WHERE user_id = $1", message.from_user.id
+        )
     if user:
-        balance, refs, level, blocked = user
+        balance, refs, level, blocked = user['balance'], user['referrals'], user['level'], user['blocked']
         status = "🟢 Aktiv" if blocked == 0 else "🔴 Bloklangan"
         await message.answer(
             f"📊 <b>Sizning statistikangiz:</b>\n\n"
@@ -156,21 +151,17 @@ class WithdrawState(StatesGroup):
 # 💸 Pul yechish boshlanishi
 @dp.message(F.text.lower().contains("pul"))
 async def withdraw_cmd(message: types.Message, state: FSMContext):
-    user_id = message.from_user.id
-    conn, cursor = get_db()
-    cursor.execute("SELECT balance, blocked FROM users WHERE user_id = ?", (user_id,))
-    user = cursor.fetchone()
-    conn.close()
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT balance, blocked FROM users WHERE user_id = $1", message.from_user.id)
 
     if not user:
         await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
         return
-
-    balance, blocked = user
+    balance, blocked = user['balance'], user['blocked']
     if blocked == 1:
         await message.answer("🚫 Sizning akkauntingiz bloklangan.")
         return
-
     if balance < 59000:
         await message.answer("❗ Pul yechish uchun kamida <b>59,000 so‘m</b> kerak.")
         return
@@ -185,7 +176,6 @@ async def get_card_number(message: types.Message, state: FSMContext):
     if not card.replace(" ", "").isdigit() or len(card.replace(" ", "")) not in [16, 20]:
         await message.answer("❌ Noto‘g‘ri karta raqami. Qayta kiriting:")
         return
-
     await state.update_data(card=card)
     await message.answer("💰 Endi yechmoqchi bo‘lgan summani kiriting (so‘mda):")
     await state.set_state(WithdrawState.amount)
@@ -193,17 +183,18 @@ async def get_card_number(message: types.Message, state: FSMContext):
 # 💰 Summani olish
 @dp.message(WithdrawState.amount)
 async def get_withdraw_amount(message: types.Message, state: FSMContext):
-    user_id = message.from_user.id
-    conn, cursor = get_db()
-    cursor.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,))
-    balance = cursor.fetchone()[0]
-    conn.close()
-
+    data = await state.get_data()
+    card = data['card']
     try:
         amount = int(message.text.strip())
     except ValueError:
         await message.answer("❌ Iltimos, faqat raqam kiriting (masalan: 75000).")
         return
+
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT balance FROM users WHERE user_id = $1", message.from_user.id)
+    balance = user['balance']
 
     if amount < 59000:
         await message.answer("❗ Minimal yechish summasi — 59,000 so‘m.")
@@ -212,13 +203,10 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
         await message.answer("❌ Hisobingizda buncha mablag‘ yo‘q.")
         return
 
-    data = await state.get_data()
-    card = data["card"]
-
     buttons = [
         [
-            InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"approve_{user_id}_{amount}"),
-            InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"reject_{user_id}")
+            InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"approve_{message.from_user.id}_{amount}"),
+            InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"reject_{message.from_user.id}")
         ]
     ]
     markup = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -227,7 +215,7 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
         ADMIN_ID,
         f"💸 <b>Yangi pul yechish so‘rovi!</b>\n\n"
         f"👤 Foydalanuvchi: @{message.from_user.username}\n"
-        f"🆔 ID: <code>{user_id}</code>\n"
+        f"🆔 ID: <code>{message.from_user.id}</code>\n"
         f"💳 Karta: <code>{card}</code>\n"
         f"💰 So‘ralgan summa: <b>{amount} so‘m</b>",
         reply_markup=markup
@@ -242,23 +230,21 @@ async def approve_payout(callback: types.CallbackQuery):
     user_id = int(parts[1])
     amount = int(parts[2])
 
-    conn, cursor = get_db()
-    cursor.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,))
-    balance = cursor.fetchone()[0]
-
-    if balance >= amount:
-        cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (amount, user_id))
-        conn.commit()
-        await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
-        await callback.message.edit_text(
-            f"✅ To‘lov tasdiqlandi!\n\n🆔 ID: <code>{user_id}</code>\n💰 Miqdor: {amount} so‘m"
-        )
-    else:
-        await bot.send_message(user_id, "❌ Hisobingizda yetarli mablag‘ yo‘q.")
-        await callback.message.edit_text(
-            f"❌ To‘lovni amalga oshib bo‘lmadi. Hisobingizda yetarli mablag‘ yo‘q."
-        )
-    conn.close()
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT balance FROM users WHERE user_id = $1", user_id)
+        balance = user['balance']
+        if balance >= amount:
+            await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", amount, user_id)
+            await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
+            await callback.message.edit_text(
+                f"✅ To‘lov tasdiqlandi!\n\n🆔 ID: <code>{user_id}</code>\n💰 Miqdor: {amount} so‘m"
+            )
+        else:
+            await bot.send_message(user_id, "❌ Hisobingizda yetarli mablag‘ yo‘q.")
+            await callback.message.edit_text(
+                f"❌ To‘lovni amalga oshib bo‘lmadi. Hisobingizda yetarli mablag‘ yo‘q."
+            )
 
 # ❌ Admin bekor qilsa
 @dp.callback_query(F.data.startswith("reject_"))
