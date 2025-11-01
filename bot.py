@@ -8,6 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 import asyncio
 import os
 import asyncpg
+import ssl
 
 # 🔑 TOKEN VA ADMIN ID
 API_TOKEN = "8520385805:AAHjOr3ThLFwjLepdS_9hNupgtwvg-tlALI"
@@ -18,14 +19,40 @@ bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# 🌐 Postgres DATABASE_URL (Heroku dan olinadi)
+# 🌐 DATABASE URL
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# 🧩 Postgres bilan bog‘lanish
-async def get_db_pool():
-    return await asyncpg.create_pool(DATABASE_URL, ssl='require')
+# 🔒 SSL sozlama (Heroku uchun)
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 
-# 🔰 Foydalanuvchini bazaga qo‘shish yoki yangilash
+# 🧩 Postgres bilan bog‘lanish
+db_pool = None
+
+async def get_db_pool():
+    global db_pool
+    if db_pool is None:
+        db_pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_context)
+    return db_pool
+
+# 🛠 Database yaratish (agar hali yo‘q bo‘lsa)
+async def init_db(pool):
+    async with pool.acquire() as conn:
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id BIGINT PRIMARY KEY,
+            username TEXT,
+            balance BIGINT DEFAULT 0,
+            referrals INTEGER DEFAULT 0,
+            level TEXT DEFAULT 'Oddiy',
+            ref_code TEXT UNIQUE,
+            invited_by BIGINT,
+            blocked INTEGER DEFAULT 0
+        )
+        """)
+
+# 🔰 Foydalanuvchini ro‘yxatga olish
 async def register_user(pool, user_id, username, invited_by=None):
     async with pool.acquire() as conn:
         user = await conn.fetchrow("SELECT user_id FROM users WHERE user_id = $1", user_id)
@@ -36,7 +63,7 @@ async def register_user(pool, user_id, username, invited_by=None):
                 user_id, username, ref_code, invited_by
             )
 
-# 🧮 Darajani hisoblash
+# 🧮 Daraja hisoblash
 def calculate_level(refs):
     if refs < 10: return "Oddiy"
     elif refs < 15: return "Silver"
@@ -62,22 +89,6 @@ def main_menu():
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
-# 🛠 Database yaratish (agar hali yo‘q bo‘lsa)
-async def init_db(pool):
-    async with pool.acquire() as conn:
-        await conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id BIGINT PRIMARY KEY,
-            username TEXT,
-            balance BIGINT DEFAULT 0,
-            referrals INTEGER DEFAULT 0,
-            level TEXT DEFAULT 'Oddiy',
-            ref_code TEXT UNIQUE,
-            invited_by BIGINT,
-            blocked INTEGER DEFAULT 0
-        )
-        """)
-
 # 🔰 /start komandasi
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
@@ -95,13 +106,15 @@ async def start_cmd(message: types.Message):
         async with pool.acquire() as conn:
             inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", invited_by)
             if inviter:
-                await conn.execute(
-                    "UPDATE users SET balance = balance + 5000, referrals = referrals + 1 WHERE user_id = $1",
-                    invited_by
-                )
                 ref_count = inviter['referrals'] + 1
                 new_level = calculate_level(ref_count)
-                await conn.execute("UPDATE users SET level = $1 WHERE user_id = $2", new_level, invited_by)
+                await conn.execute("""
+                    UPDATE users
+                    SET balance = balance + 5000,
+                        referrals = referrals + 1,
+                        level = $1
+                    WHERE user_id = $2
+                """, new_level, invited_by)
 
     await message.answer(
         f"👋 Salom, <b>{message.from_user.first_name}</b>!\n\n"
@@ -116,8 +129,9 @@ async def referral_link(message: types.Message):
     me = await bot.get_me()
     link = f"https://t.me/{me.username}?start={message.from_user.id}"
     await message.answer(
-        f"📢 Har bir do‘st taklifi uchun sizga <b>5000 so‘m</b> beriladi!:\n<a href='{link}'>{link}</a>\n\n"
-        "Havolani do‘stlaringizga jo‘nating!",
+        f"📢 Har bir do‘st taklifi uchun sizga <b>5000 so‘m</b> beriladi!\n\n"
+        f"<a href='{link}'>{link}</a>\n\n"
+        "Havolani do‘stlaringizga yuboring 👇",
         parse_mode=ParseMode.HTML
     )
 
@@ -142,12 +156,11 @@ async def stats_cmd(message: types.Message):
     else:
         await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
 
-# 💸 FSM uchun step-lar
+# 💸 FSM — pul yechish
 class WithdrawState(StatesGroup):
     card = State()
     amount = State()
 
-# 💸 Pul yechish boshlanishi
 @dp.message(F.text.lower().contains("pul"))
 async def withdraw_cmd(message: types.Message, state: FSMContext):
     pool = await get_db_pool()
@@ -155,31 +168,24 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
         user = await conn.fetchrow("SELECT balance, blocked FROM users WHERE user_id = $1", message.from_user.id)
 
     if not user:
-        await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
-        return
-    balance, blocked = user['balance'], user['blocked']
-    if blocked == 1:
-        await message.answer("🚫 Sizning akkauntingiz bloklangan.")
-        return
-    if balance < 59000:
-        await message.answer("❗ Pul yechish uchun kamida <b>59,000 so‘m</b> kerak.")
-        return
+        return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
+    if user['blocked'] == 1:
+        return await message.answer("🚫 Sizning akkauntingiz bloklangan.")
+    if user['balance'] < 59000:
+        return await message.answer("❗ Pul yechish uchun kamida <b>59,000 so‘m</b> kerak.")
 
     await message.answer("💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
     await state.set_state(WithdrawState.card)
 
-# 💳 Karta raqamini olish
 @dp.message(WithdrawState.card)
 async def get_card_number(message: types.Message, state: FSMContext):
     card = message.text.strip()
     if not card.replace(" ", "").isdigit() or len(card.replace(" ", "")) not in [16, 20]:
-        await message.answer("❌ Noto‘g‘ri karta raqami. Qayta kiriting:")
-        return
+        return await message.answer("❌ Noto‘g‘ri karta raqami. Qayta kiriting:")
     await state.update_data(card=card)
     await message.answer("💰 Endi yechmoqchi bo‘lgan summani kiriting (so‘mda):")
     await state.set_state(WithdrawState.amount)
 
-# 💰 Summani olish
 @dp.message(WithdrawState.amount)
 async def get_withdraw_amount(message: types.Message, state: FSMContext):
     data = await state.get_data()
@@ -187,8 +193,7 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
     try:
         amount = int(message.text.strip())
     except ValueError:
-        await message.answer("❌ Iltimos, faqat raqam kiriting (masalan: 75000).")
-        return
+        return await message.answer("❌ Faqat raqam kiriting (masalan: 75000).")
 
     pool = await get_db_pool()
     async with pool.acquire() as conn:
@@ -196,19 +201,14 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
     balance = user['balance']
 
     if amount < 59000:
-        await message.answer("❗ Minimal yechish summasi — 59,000 so‘m.")
-        return
+        return await message.answer("❗ Minimal yechish summasi — 59,000 so‘m.")
     if amount > balance:
-        await message.answer("❌ Hisobingizda buncha mablag‘ yo‘q.")
-        return
+        return await message.answer("❌ Hisobingizda yetarli mablag‘ yo‘q.")
 
-    buttons = [
-        [
-            InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"approve_{message.from_user.id}_{amount}"),
-            InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"reject_{message.from_user.id}")
-        ]
-    ]
-    markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+    markup = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"approve_{message.from_user.id}_{amount}"),
+        InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"reject_{message.from_user.id}")
+    ]])
 
     await bot.send_message(
         ADMIN_ID,
@@ -222,35 +222,26 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
     await message.answer("✅ So‘rovingiz adminga yuborildi. To‘lov 30 daqiqa ichida amalga oshiriladi.")
     await state.clear()
 
-# ✅ Admin tasdiqlasa
 @dp.callback_query(F.data.startswith("approve_"))
 async def approve_payout(callback: types.CallbackQuery):
-    parts = callback.data.split("_")
-    user_id = int(parts[1])
-    amount = int(parts[2])
-
+    _, user_id, amount = callback.data.split("_")
+    user_id, amount = int(user_id), int(amount)
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow("SELECT balance FROM users WHERE user_id = $1", user_id)
-        balance = user['balance']
-        if balance >= amount:
+        if user and user['balance'] >= amount:
             await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", amount, user_id)
             await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
-            await callback.message.edit_text(
-                f"✅ To‘lov tasdiqlandi!\n\n🆔 ID: <code>{user_id}</code>\n💰 Miqdor: {amount} so‘m"
-            )
+            await callback.message.edit_text(f"✅ To‘lov tasdiqlandi!\n🆔 ID: {user_id}\n💰 {amount} so‘m")
         else:
             await bot.send_message(user_id, "❌ Hisobingizda yetarli mablag‘ yo‘q.")
-            await callback.message.edit_text(
-                f"❌ To‘lovni amalga oshib bo‘lmadi. Hisobingizda yetarli mablag‘ yo‘q."
-            )
+            await callback.message.edit_text("❌ To‘lov amalga oshmadi — balans yetarli emas.")
 
-# ❌ Admin bekor qilsa
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject_payout(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[1])
     await bot.send_message(user_id, "❌ Sizning pul yechish so‘rovingiz bekor qilindi.")
-    await callback.message.edit_text(f"❌ Pul yechish so‘rovi bekor qilindi.\n🆔 ID: <code>{user_id}</code>")
+    await callback.message.edit_text(f"❌ Pul yechish so‘rovi bekor qilindi.\n🆔 ID: {user_id}")
 
 # 🚀 Ishga tushirish
 async def main():
