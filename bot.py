@@ -65,7 +65,8 @@ async def register_user(pool, user_id, username, invited_by=None):
 
 # 🧮 Daraja hisoblash
 def calculate_level(refs):
-    if refs < 10: return "Oddiy"
+    if refs < 5: return "Oddiy"
+    elif refs < 10: return "Bronza"
     elif refs < 15: return "Silver"
     elif refs < 21: return "Gold"
     elif refs < 28: return "Platina 1"
