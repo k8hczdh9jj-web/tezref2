@@ -111,7 +111,7 @@ async def start_cmd(message: types.Message):
                 new_level = calculate_level(ref_count)
                 await conn.execute("""
                     UPDATE users
-                    SET balance = balance + 5000,
+                    SET balance = balance + 15000,
                         referrals = referrals + 1,
                         level = $1
                     WHERE user_id = $2
@@ -130,7 +130,7 @@ async def referral_link(message: types.Message):
     me = await bot.get_me()
     link = f"https://t.me/{me.username}?start={message.from_user.id}"
     await message.answer(
-        f"📢 Har bir do‘st taklifi uchun sizga <b>5000 so‘m</b> beriladi!\n\n"
+        f"📢 Har bir do‘st taklifi uchun sizga <b>15000 so‘m</b> beriladi!\n\n"
         f"<a href='{link}'>{link}</a>\n\n"
         "Havolani do‘stlaringizga yuboring 👇",
         parse_mode=ParseMode.HTML
@@ -173,7 +173,7 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
     if user['blocked'] == 1:
         return await message.answer("🚫 Sizning akkauntingiz bloklangan.")
     if user['balance'] < 59000:
-        return await message.answer("❗ Pul yechish uchun kamida <b>59,000 so‘m</b> kerak.")
+        return await message.answer("❗ Pul yechish uchun kamida <b>149,000 so‘m</b> kerak.")
 
     await message.answer("💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
     await state.set_state(WithdrawState.card)
@@ -202,7 +202,7 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
     balance = user['balance']
 
     if amount < 59000:
-        return await message.answer("❗ Minimal yechish summasi — 59,000 so‘m.")
+        return await message.answer("❗ Minimal yechish summasi — 149,000 so‘m.")
     if amount > balance:
         return await message.answer("❌ Hisobingizda yetarli mablag‘ yo‘q.")
 
