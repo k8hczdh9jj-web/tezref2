@@ -172,7 +172,7 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
         return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
     if user['blocked'] == 1:
         return await message.answer("🚫 Sizning akkauntingiz bloklangan.")
-    if user['balance'] < 59000:
+    if user['balance'] < 149000:
         return await message.answer("❗ Pul yechish uchun kamida <b>149,000 so‘m</b> kerak.")
 
     await message.answer("💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
