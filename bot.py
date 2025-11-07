@@ -307,21 +307,48 @@ async def approve_payout(callback: types.CallbackQuery):
     user_id, amount = int(user_id), int(amount)
     pool = await get_db_pool()
     async with pool.acquire() as conn:
+        # foydalanuvchini bazadan olish
         user = await conn.fetchrow("SELECT balance FROM users WHERE user_id = $1", user_id)
-        if user and user['balance'] >= amount:
-            await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", amount, user_id)
-            await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
-            await recalc_user_stats(user_id, conn) # recalc stats after withdrawal
-            await callback.message.edit_text(f"✅ To‘lov tasdiqlandi!\n🆔 ID: {user_id}\n💰 {amount} so‘m")
-        else:
+        if not user:
+            await callback.answer("❌ Foydalanuvchi topilmadi", show_alert=True)
+            return
+
+        if user['balance'] < amount:
             await bot.send_message(user_id, "❌ Hisobingizda yetarli mablag‘ yo‘q.")
-            await callback.message.edit_text("❌ To‘lov amalga oshmadi — balans yetarli emas.")
+            await callback.message.edit_text(
+                "❌ To‘lov amalga oshmadi — balans yetarli emas.",
+                reply_markup=None
+            )
+            return
+
+        # 1️⃣ Balansdan pul yechish
+        await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", amount, user_id)
+
+        # 2️⃣ Foydalanuvchiga xabar yuborish
+        await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
+
+        # 3️⃣ Foydalanuvchi statistikasi: referal va levelni yangilash
+        total_refs = await conn.fetchval("SELECT COUNT(*) FROM users WHERE invited_by=$1", user_id)
+        new_level, _ = get_level_by_refs(total_refs)
+        await conn.execute(
+            "UPDATE users SET level=$1, referrals=$2 WHERE user_id=$3",
+            new_level, total_refs, user_id
+        )
+
+        # 4️⃣ Admin xabarini yangilash va tugmalarni olib tashlash
+        await callback.message.edit_text(
+            f"✅ To‘lov tasdiqlandi!\n🆔 ID: {user_id}\n💰 {amount} so‘m",
+            reply_markup=None
+        )
 
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject_payout(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[1])
     await bot.send_message(user_id, "❌ Sizning pul yechish so‘rovingiz bekor qilindi.")
-    await callback.message.edit_text(f"❌ Pul yechish so‘rovi bekor qilindi.\n🆔 ID: {user_id}")
+    await callback.message.edit_text(
+        f"❌ Pul yechish so‘rovi bekor qilindi.\n🆔 ID: {user_id}",
+        reply_markup=None
+    )
 
 # Fake TOP 10 foydalanuvchilar
 TOP10_MANUAL = [
