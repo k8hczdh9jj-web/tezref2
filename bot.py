@@ -109,12 +109,13 @@ async def start_cmd(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username or f"user{user_id}"
 
-    # /start argumentini olish to'g'ri usul
+    # Telegram /start dan keyingi argumentni olish
     invited_by = None
-    if message.get_args():  # Telegram /start dan keyingi argument
-        arg = message.get_args()
-        if arg.isdigit():
-            invited_by = int(arg)
+    if message.text:
+        # message.text = "/start 12345678"
+        parts = message.text.split(maxsplit=1)
+        if len(parts) > 1 and parts[1].isdigit():
+            invited_by = int(parts[1])
 
     async with pool.acquire() as conn:
         user = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", user_id)
@@ -125,7 +126,7 @@ async def start_cmd(message: types.Message):
                 user_id, username, str(user_id), invited_by
             )
 
-            # inviterni yangilash (referral qo'shish)
+            # Inviterni yangilash
             if invited_by and invited_by != user_id:
                 inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
                 if inviter:
