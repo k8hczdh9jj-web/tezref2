@@ -382,33 +382,6 @@ async def show_ranking(message: types.Message):
 async def contact_admin(message: types.Message):
     await message.answer(f"📞 Admin bilan bog‘laning: @{ADMIN_USERNAME}")
 
-# ------------------ DB UPDATE FOR EXISTING BALANCES ------------------
-async def recalc_all_balances(pool):
-    """
-    Barcha foydalanuvchilarning:
-    - referral sonini (bazadagi invited_by bo'yicha)
-    - balansini (level va referral soniga qarab)
-    - levelini
-    avtomatik yangilaydi.
-    """
-    async with pool.acquire() as conn:
-        # barcha foydalanuvchilarni olish
-        users = await conn.fetch("SELECT user_id FROM users")
-        for u in users:
-            user_id = u['user_id']
-
-            # referral sonini qayta hisoblash
-            total_refs = await conn.fetchval("SELECT COUNT(*) FROM users WHERE invited_by=$1", user_id)
-
-            # balans va levelni hisoblash
-            new_balance = get_total_earned_until_refs(total_refs)
-            new_level, _ = get_level_by_refs(total_refs)
-
-            # bazaga yozish
-            await conn.execute(
-                "UPDATE users SET referrals=$1, balance=$2, level=$3 WHERE user_id=$4",
-                total_refs, new_balance, new_level, user_id
-            )
 
 # ------------------ RUN ------------------
 async def main():
@@ -416,15 +389,12 @@ async def main():
     pool = await get_db_pool()
     await init_db(pool)
 
-    # Bazadagi barcha foydalanuvchilar uchun referral va balanslarni yangilash
-    await recalc_all_balances(pool)
-
     # Yangilangan menyuni foydalanuvchilarga yuborish
     async with pool.acquire() as conn:
         users = await conn.fetch("SELECT user_id FROM users")
         for u in users:
             try:
-                await bot.send_message(u['user_id'], "🔄 Texnik ishlar olib borilmoqda", reply_markup=main_menu())
+                await bot.send_message(u['user_id'], "🔄 Botimiz ishga tushdi", reply_markup=main_menu())
             except Exception as e:
                 print(f"User {u['user_id']} ga xabar yuborilmadi: {e}")
 
