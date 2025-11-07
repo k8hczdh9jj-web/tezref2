@@ -379,6 +379,13 @@ async def main():
     pool = await get_db_pool()
     await init_db(pool)
     await recalc_all_balances(pool)
+    async with pool.acquire() as conn:
+        users = await conn.fetch("SELECT user_id FROM users")
+        for u in users:
+            try:
+                await bot.send_message(u['user_id'], "🔄 Menyu yangilandi!", reply_markup=main_menu())
+            except Exception as e:
+                print(f"User {u['user_id']} ga xabar yuborilmadi: {e}")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
