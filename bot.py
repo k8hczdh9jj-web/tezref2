@@ -108,7 +108,7 @@ async def start_cmd(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username or f"user{user_id}"
 
-    # /start dan keyingi argumentni olish
+    # /start dan keyingi argumentni olish (taklifchi)
     invited_by = None
     if message.text:
         parts = message.text.split(maxsplit=1)
@@ -119,7 +119,7 @@ async def start_cmd(message: types.Message):
         # Foydalanuvchi bazada bormi?
         user = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", user_id)
 
-        # 🔹 Har safar foydalanuvchini tekshiramiz (agar bazadan o‘chirilgan bo‘lsa — qayta qo‘shamiz)
+        # 🔹 Yangi foydalanuvchini qo‘shish
         if not user:
             await conn.execute(
                 """
@@ -129,11 +129,14 @@ async def start_cmd(message: types.Message):
                 user_id, username, str(user_id), invited_by
             )
 
-            # 🔹 Taklif qiluvchiga bonus berish (agar taklifchi mavjud bo‘lsa va o‘zi bo‘lmasa)
+            # 🔹 Agar referal orqali kirgan bo‘lsa — bonus berish
             if invited_by and invited_by != user_id:
                 inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
                 if inviter:
-                    total_refs = await conn.fetchval("SELECT COUNT(*) FROM users WHERE invited_by=$1", invited_by)
+                    total_refs = await conn.fetchval(
+                        "SELECT COUNT(*) FROM users WHERE invited_by=$1",
+                        invited_by
+                    )
                     new_level, per_ref = get_level_by_refs(total_refs)
                     new_balance = inviter["balance"] + per_ref
 
