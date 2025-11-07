@@ -119,32 +119,32 @@ async def start_cmd(message: types.Message):
         # Foydalanuvchi bazada bormi?
         user = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", user_id)
 
-        # Agar mavjud bo‘lmasa – yangi foydalanuvchi sifatida qo‘shamiz
+        # 🔹 Har safar foydalanuvchini tekshiramiz (agar bazadan o‘chirilgan bo‘lsa — qayta qo‘shamiz)
         if not user:
             await conn.execute(
-                "INSERT INTO users (user_id, username, ref_code, invited_by) VALUES ($1,$2,$3,$4)",
+                """
+                INSERT INTO users (user_id, username, ref_code, invited_by, referrals, balance, level, weekly_refs)
+                VALUES ($1,$2,$3,$4,0,0,1,0)
+                """,
                 user_id, username, str(user_id), invited_by
             )
 
-        # 🔹 Taklif qiluvchiga bonus berish (agar taklifchi mavjud bo‘lsa va o‘zi bo‘lmasa)
-        if invited_by and invited_by != user_id:
-            inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
-            if inviter:
-                # Referallarni real-time hisoblash
-                total_refs = await conn.fetchval("SELECT COUNT(*) FROM users WHERE invited_by=$1", invited_by)
+            # 🔹 Taklif qiluvchiga bonus berish (agar taklifchi mavjud bo‘lsa va o‘zi bo‘lmasa)
+            if invited_by and invited_by != user_id:
+                inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
+                if inviter:
+                    total_refs = await conn.fetchval("SELECT COUNT(*) FROM users WHERE invited_by=$1", invited_by)
+                    new_level, per_ref = get_level_by_refs(total_refs)
+                    new_balance = inviter["balance"] + per_ref
 
-                new_level, per_ref = get_level_by_refs(total_refs)
-                new_balance = inviter['balance'] + per_ref
-
-                # Bonusni yangilash
-                await conn.execute("""
-                    UPDATE users
-                    SET referrals=$1,
-                        weekly_refs=weekly_refs + 1,
-                        balance=$2,
-                        level=$3
-                    WHERE user_id=$4
-                """, total_refs, new_balance, new_level, invited_by)
+                    await conn.execute("""
+                        UPDATE users
+                        SET referrals=$1,
+                            weekly_refs = weekly_refs + 1,
+                            balance = $2,
+                            level = $3
+                        WHERE user_id=$4
+                    """, total_refs, new_balance, new_level, invited_by)
 
 
     # Foydalanuvchining yangi referral bilan statistikasi
