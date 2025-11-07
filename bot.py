@@ -311,6 +311,7 @@ async def approve_payout(callback: types.CallbackQuery):
         if user and user['balance'] >= amount:
             await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", amount, user_id)
             await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
+            await recalc_user_stats(user_id, conn) # recalc stats after withdrawal
             await callback.message.edit_text(f"✅ To‘lov tasdiqlandi!\n🆔 ID: {user_id}\n💰 {amount} so‘m")
         else:
             await bot.send_message(user_id, "❌ Hisobingizda yetarli mablag‘ yo‘q.")
