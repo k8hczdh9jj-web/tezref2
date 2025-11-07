@@ -213,7 +213,7 @@ async def stats_cmd(message: types.Message):
         
         await message.answer(
             f"📊 <b>Sizning statistikangiz:</b>\n\n"
-            f"👥 Referallar: <b>{user['referrals']}</b>\n"
+            f"👥 Referallar: <b>{total_refs}</b>\n"
             f"💰 Balans: <b>{user['balance']} so‘m</b>\n"
             f"🏅 Daraja: <b>{user['level']}</b>\n"
             f"⚙️ Holat: {status}"
