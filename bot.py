@@ -197,22 +197,37 @@ async def check_subscription(callback: types.CallbackQuery):
 async def stats_cmd(message: types.Message):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        user = await conn.fetchrow(
-            "SELECT balance, referrals, level, blocked FROM users WHERE user_id = $1", message.from_user.id
+        # foydalanuvchining haqiqiy referral sonini hisoblaymiz
+        total_refs = await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE invited_by=$1", message.from_user.id
         )
 
-    if user:
-        balance, refs, level, blocked = user['balance'], user['referrals'], user['level'], user['blocked']
-        status = "🟢 Aktiv" if blocked == 0 else "🔴 Bloklangan"
+        # balans va levelni real vaqt hisoblash
+        new_balance = get_total_earned_until_refs(total_refs)
+        new_level, _ = get_level_by_refs(total_refs)
+
+        # foydalanuvchi bloklangan yoki yo‘qligini tekshirish
+        user = await conn.fetchrow(
+            "SELECT blocked FROM users WHERE user_id=$1", message.from_user.id
+        )
+        if not user:
+            return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz, botni boshqatdan ishga tushiring.")
+
+        status = "🟢 Aktiv" if user['blocked'] == 0 else "🔴 Bloklangan"
+
+        # bazaga ham yozib qo‘yish (ixtiyoriy)
+        await conn.execute(
+            "UPDATE users SET referrals=$1, balance=$2, level=$3 WHERE user_id=$4",
+            total_refs, new_balance, new_level, message.from_user.id
+        )
+
         await message.answer(
             f"📊 <b>Sizning statistikangiz:</b>\n\n"
-            f"👥 Referallar: <b>{refs}</b>\n"
-            f"💰 Balans: <b>{balance} so‘m</b>\n"
-            f"🏅 Daraja: <b>{level}</b>\n"
+            f"👥 Referallar: <b>{total_refs}</b>\n"
+            f"💰 Balans: <b>{new_balance} so‘m</b>\n"
+            f"🏅 Daraja: <b>{new_level}</b>\n"
             f"⚙️ Holat: {status}"
         )
-    else:
-        await message.answer("Siz hali ro‘yxatdan o‘tmagansiz, botni boshqatdan ishga tushiring.")
 
 # 💸 FSM — pul yechish
 class WithdrawState(StatesGroup):
