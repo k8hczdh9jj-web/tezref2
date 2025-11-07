@@ -1,3 +1,4 @@
+# Full updated bot with channel join check (aiogram 3.20+)
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart
@@ -10,134 +11,179 @@ import os
 import asyncpg
 import ssl
 
-# 🔑 TOKEN VA ADMIN ID
+# ------------------ CONFIG ------------------
 API_TOKEN = "8401942831:AAF7rQa6UC7YGNyIk9gdx1XnaiyxZlt5lJA"
-ADMIN_ID = 496829881  # Admin Telegram ID
-
-# 🔧 Bot sozlamalari
-bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
-
-# 🌐 DATABASE URL
+ADMIN_ID = 496829881
+ADMIN_USERNAME = "tezref_admin1"
+CHANNEL_USERNAME = "@tezrefofficial"
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# 🔒 SSL sozlama (Heroku uchun)
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
-# 🧩 Postgres bilan bog‘lanish
-db_pool = None
+# ------------------ BOT INIT ------------------
+bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 
+# ------------------ DB SETUP ------------------
+db_pool = None
 async def get_db_pool():
     global db_pool
     if db_pool is None:
+        if not DATABASE_URL:
+            raise RuntimeError("DATABASE_URL is not set.")
         db_pool = await asyncpg.create_pool(DATABASE_URL, ssl=ssl_context)
     return db_pool
 
-# 🛠 Database yaratish (agar hali yo‘q bo‘lsa)
 async def init_db(pool):
     async with pool.acquire() as conn:
         await conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id BIGINT PRIMARY KEY,
-            username TEXT,
-            balance BIGINT DEFAULT 0,
-            referrals INTEGER DEFAULT 0,
-            level TEXT DEFAULT 'Oddiy',
-            ref_code TEXT UNIQUE,
-            invited_by BIGINT,
-            blocked INTEGER DEFAULT 0
-        )
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                balance BIGINT DEFAULT 0,
+                referrals INTEGER DEFAULT 0,
+                weekly_refs INTEGER DEFAULT 0,
+                level TEXT DEFAULT 'Oddiy',
+                ref_code TEXT UNIQUE,
+                invited_by BIGINT,
+                blocked INTEGER DEFAULT 0
+            )
         """)
 
-# 🔰 Foydalanuvchini ro‘yxatga olish
-async def register_user(pool, user_id, username, invited_by=None):
-    async with pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT user_id FROM users WHERE user_id = $1", user_id)
-        if not user:
-            ref_code = str(user_id)
-            await conn.execute(
-                "INSERT INTO users(user_id, username, ref_code, invited_by) VALUES($1, $2, $3, $4)",
-                user_id, username, ref_code, invited_by
-            )
+# ------------------ level ------------------
+level = [
+    ("Oddiy", 3, 1500),
+    ("Bronza", 10, 1750),
+    ("Silver", 18, 2250),
+    ("Gold", 26, 2500),
+    ("Platina 1", 36, 3000),
+    ("Platina 2", 50, 3500),
+    ("Platina 3", 70, 4000),
+    ("Platina 4", 95, 4500),
+    ("Platina 5", 125, 5500),
+    ("Platina 6", 155, 7000),
+    ("Diamond 1", 185, 8500),
+    ("Diamond 2", 220, 10000),
+    ("Diamond 3", 270, 11500),
+    ("Diamond 4", 330, 13000),
+    ("Diamond 5", 400, 14500),
+    ("Diamond 6", float('inf'), 16000),
+]
 
-# 🧮 Daraja hisoblash
-def calculate_level(refs):
-    if refs < 5: return "Oddiy"
-    elif refs < 10: return "Bronza"
-    elif refs < 15: return "Silver"
-    elif refs < 21: return "Gold"
-    elif refs < 28: return "Platina 1"
-    elif refs < 36: return "Platina 2"
-    elif refs < 45: return "Platina 3"
-    elif refs < 55: return "Platina 4"
-    elif refs < 66: return "Platina 5"
-    elif refs < 78: return "Platina 6"
-    elif refs < 91: return "Diamond 1"
-    elif refs < 105: return "Diamond 2"
-    elif refs < 120: return "Diamond 3"
-    elif refs < 136: return "Diamond 4"
-    elif refs < 153: return "Diamond 5"
-    else: return "Diamond 6"
+def get_level_by_refs(refs: int):
+    for name, upper, per_ref in level:
+        if refs < upper:
+            return name, per_ref
+    return level[-1][0], level[-1][2]
 
-# 📱 Asosiy menyu
+def get_total_earned_until_refs(refs: int):
+    total, prev = 0, 0
+    for name, upper, per_ref in level:
+        if upper == float('inf'):
+            total += max(0, refs - prev) * per_ref
+            break
+        else:
+            total += max(0, min(refs, upper) - prev) * per_ref
+            prev = upper
+    return total
+
+# ------------------ MAIN MENU ------------------
 def main_menu():
     buttons = [
-        [KeyboardButton(text="📊 Statistika"), KeyboardButton(text="💰 Pul yechish")],
-        [KeyboardButton(text="📢 Referal havola")]
+        [KeyboardButton(text="📢 Referal havola"), KeyboardButton(text="📊 Statistika")],
+        [KeyboardButton(text="💰 Pul yechish"), KeyboardButton(text="🏆 Reyting")],
+        [KeyboardButton(text="📞 Adminga murojaat")]
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
-# 🔰 /start komandasi
+# ------------------ /start ------------------
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
     pool = await get_db_pool()
     await init_db(pool)
 
     user_id = message.from_user.id
-    username = message.from_user.username or "NoName"
+    username = message.from_user.username or f"user{user_id}"
     args = message.text.split()
     invited_by = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
-    await register_user(pool, user_id, username, invited_by)
+    async with pool.acquire() as conn:
+        exists = await conn.fetchval("SELECT 1 FROM users WHERE user_id=$1", user_id)
+        if not exists:
+            await conn.execute(
+                "INSERT INTO users (user_id, username, ref_code, invited_by) VALUES ($1,$2,$3,$4)",
+                user_id, username, str(user_id), invited_by
+            )
 
     if invited_by and invited_by != user_id:
         async with pool.acquire() as conn:
-            inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", invited_by)
+            inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
             if inviter:
-                ref_count = inviter['referrals'] + 1
-                new_level = calculate_level(ref_count)
+                new_refs = inviter['referrals'] + 1
+                new_level, per_ref = get_level_by_refs(new_refs)
                 await conn.execute("""
-                    UPDATE users
-                    SET balance = balance + 15000,
-                        referrals = referrals + 1,
-                        level = $1
-                    WHERE user_id = $2
-                """, new_level, invited_by)
+                    UPDATE users SET referrals=$1, weekly_refs=weekly_refs+1,
+                    balance=balance+$2, level=$3 WHERE user_id=$4
+                """, new_refs, per_ref, new_level, invited_by)
 
     await message.answer(
-        f"👋 Salom, <b>{message.from_user.first_name}</b>!\n\n"
-        "🎯 <b>TezRef</b> botga xush kelibsiz!\n\n"
-        "💸 Referallar orqali pul ishlang va 30 daqiqada yeching!",
+        f"👋 Salom, <b>{message.from_user.first_name}</b>!\n"
+        "💸 TezRef botga xush kelibsiz!\n"
+        "Pul ishlashni boshlash uchun menyudan foydalaning.",
         reply_markup=main_menu()
     )
 
-# 📢 Referal havola
-@dp.message(F.text.lower().contains("referal"))
-async def referral_link(message: types.Message):
-    me = await bot.get_me()
-    link = f"https://t.me/{me.username}?start={message.from_user.id}"
-    await message.answer(
-        f"📢 Har bir do‘st taklifi uchun sizga <b>15000 so‘m</b> beriladi!\n\n"
-        f"<a href='{link}'>{link}</a>\n\n"
-        "Havolani do‘stlaringizga yuboring 👇",
-        parse_mode=ParseMode.HTML
-    )
+# ------------------ CHANNEL CHECK ------------------
+async def is_member(user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ['creator', 'administrator', 'member']
+    except Exception as e:
+        print(f"❌ get_chat_member error: {e}")
+        return False
 
-# 📊 Statistika
-@dp.message(F.text.lower().contains("statistika"))
+# ------------------ HANDLERS ------------------
+# Referal havola - majburiy kanal
+@dp.message(F.text == "📢 Referal havola")
+async def referral_link(message: types.Message):
+    user_id = message.from_user.id
+    if not await is_member(user_id):
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Kanalga obuna bo‘lish", url=f"https://t.me/{CHANNEL_USERNAME.replace('@','')}")],
+            [InlineKeyboardButton(text="✅ A’zo bo‘ldim", callback_data="check_subs")]
+        ])
+        return await message.answer("⚠️ Iltimos, botdan foydalanish uchun kanalga a’zo bo‘ling:", reply_markup=markup)
+
+    me = await bot.get_me()
+    link = f"https://t.me/{me.username}?start={user_id}"
+    await message.answer(f"📢 Sizning referal havolangiz:\n\n<a href='{link}'>{link}</a>\n\n"
+                         "Havolani do'stlaringizga yuboring va pul ishlang!", parse_mode=ParseMode.HTML)
+
+@dp.callback_query(F.data == "check_subs")
+async def check_subscription(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    for _ in range(5):
+        try:
+            member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
+            if member.status in ['creator', 'administrator', 'member']:
+                me = await bot.get_me()
+                link = f"https://t.me/{me.username}?start={user_id}"
+                await callback.message.edit_text(
+                    f"✅ A’zo bo‘lganingiz uchun rahmat!\n\n"
+                    f"📢 Sizning referal havolangiz:\n<a href='{link}'>{link}</a>",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+        except Exception as e:
+            print(f"❌ get_chat_member error: {e}")
+        await asyncio.sleep(2)
+    await callback.answer("❌ Siz hali kanalga a’zo bo‘lmagansiz!", show_alert=True)
+
+# Statistika
+@dp.message(F.text.contains("Statistika"))
 async def stats_cmd(message: types.Message):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
@@ -155,12 +201,15 @@ async def stats_cmd(message: types.Message):
             f"⚙️ Holat: {status}"
         )
     else:
-        await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
+        await message.answer("Siz hali ro‘yxatdan o‘tmagansiz, botni boshqatdan ishga tushiring.")
 
 # 💸 FSM — pul yechish
 class WithdrawState(StatesGroup):
     card = State()
     amount = State()
+
+MIN_WITHDRAW = 5000
+MAX_WITHDRAW = 50000
 
 @dp.message(F.text.lower().contains("pul"))
 async def withdraw_cmd(message: types.Message, state: FSMContext):
@@ -172,8 +221,8 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
         return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
     if user['blocked'] == 1:
         return await message.answer("🚫 Sizning akkauntingiz bloklangan.")
-    if user['balance'] < 149000:
-        return await message.answer("❗ Pul yechish uchun kamida <b>149,000 so‘m</b> kerak.")
+    if user['balance'] < MIN_WITHDRAW:
+        return await message.answer(f"❗ Pul yechish uchun kamida <b>{MIN_WITHDRAW:,} so‘m</b> kerak.")
 
     await message.answer("💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
     await state.set_state(WithdrawState.card)
@@ -184,7 +233,7 @@ async def get_card_number(message: types.Message, state: FSMContext):
     if not card.replace(" ", "").isdigit() or len(card.replace(" ", "")) not in [16, 20]:
         return await message.answer("❌ Noto‘g‘ri karta raqami. Qayta kiriting:")
     await state.update_data(card=card)
-    await message.answer("💰 Endi yechmoqchi bo‘lgan summani kiriting (so‘mda):")
+    await message.answer(f"💰 Endi yechmoqchi bo‘lgan summani kiriting:")
     await state.set_state(WithdrawState.amount)
 
 @dp.message(WithdrawState.amount)
@@ -194,19 +243,22 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
     try:
         amount = int(message.text.strip())
     except ValueError:
-        return await message.answer("❌ Faqat raqam kiriting (masalan: 75000).")
+        return await message.answer("❌ Faqat raqam kiriting (masalan: 7500).")
+
+    if amount < MIN_WITHDRAW:
+        return await message.answer(f"❗ Minimal yechish summasi — {MIN_WITHDRAW:,} so‘m.")
+    if amount > MAX_WITHDRAW:
+        return await message.answer(f"❗ Maksimal yechish summasi — {MAX_WITHDRAW:,} so‘m.")
 
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow("SELECT balance FROM users WHERE user_id = $1", message.from_user.id)
     balance = user['balance']
 
-    if amount < 59000:
-        return await message.answer("❗ Minimal yechish summasi — 149,000 so‘m.")
     if amount > balance:
         return await message.answer("❌ Hisobingizda yetarli mablag‘ yo‘q.")
 
-    markup = InlineKeyboardMarkup(inline_keyboard=[[
+    markup = InlineKeyboardMarkup(inline_keyboard=[[ 
         InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"approve_{message.from_user.id}_{amount}"),
         InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"reject_{message.from_user.id}")
     ]])
@@ -244,9 +296,89 @@ async def reject_payout(callback: types.CallbackQuery):
     await bot.send_message(user_id, "❌ Sizning pul yechish so‘rovingiz bekor qilindi.")
     await callback.message.edit_text(f"❌ Pul yechish so‘rovi bekor qilindi.\n🆔 ID: {user_id}")
 
-# 🚀 Ishga tushirish
+# Fake TOP 10 foydalanuvchilar
+TOP10_MANUAL = [
+    3000000,
+    2000000,
+    1000000,
+    500000,
+    500000,
+    500000,
+    300000,
+    300000,
+    300000,
+    300000
+]
+# Reyting
+@dp.message(F.text.lower().contains("reyting"))
+async def show_ranking(message: types.Message):
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        # haqiqiy foydalanuvchilarni referrals bo'yicha kamayish tartibida olamiz
+        users = await conn.fetch("""
+            SELECT user_id, username, referrals
+            FROM users
+            ORDER BY referrals DESC
+        """)
+
+    # Faqat qo'lda kiritilgan TOP-10 ro'yxatini ko'rsatamiz
+    lines = ["🏆 <b>Haftalik Reyting (TOP 10)</b>\n"]
+    for i, prize in enumerate(TOP10_MANUAL, start=1):
+        lines.append(f"{i} - o‘rin: <b>{prize:,}</b> so‘m 💰")
+
+    # Foydalanuvchining o'rnini aniqlaymiz (haqiqiy foydalanuvchilar 11-o'rindan boshlanadi)
+    user_rank = None
+    user_refs = 0
+    for idx, u in enumerate(users, start=11):
+        if u["user_id"] == message.from_user.id:
+            user_rank = idx
+            user_refs = u["referrals"]
+            break
+
+    # Qo'shimcha xabar: foydalanuvchiga o'z o'rni yoki yo'qligi haqida ma'lumot
+    lines.append("")  # bo'sh qator
+    if user_rank:
+        lines.append(f"📈 Siz hozirda <b>{user_rank}-o‘rindasiz</b>!")
+        lines.append(f"👥 Sizda jami <b>{user_refs}</b> ta referal bor.")
+    else:
+        # agar foydalanuvchi users listida bo'lmasa — u hali referal chaqirmagan yoki 0 refs
+        # bazadan uning o'z referal sonini olish (agar user mavjud bo'lsa)
+        async with pool.acquire() as conn:
+            own = await conn.fetchrow("SELECT referrals FROM users WHERE user_id = $1", message.from_user.id)
+        own_refs = own['referrals'] if own else 0
+        lines.append("❗ Siz TOP-10 ga kirmagansiz.")
+        lines.append(f"👥 Sizda jami <b>{own_refs}</b> ta referal bor. Ko‘proq do‘stlaringizni taklif qiling!")
+
+    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+
+# Adminga murojaat
+@dp.message(F.text.contains("Adminga murojaat"))
+async def contact_admin(message: types.Message):
+    await message.answer(f"📞 Admin bilan bog‘laning: @{ADMIN_USERNAME}")
+
+# ------------------ DB UPDATE FOR EXISTING BALANCES ------------------
+async def recalc_all_balances(pool):
+    """
+    Barcha foydalanuvchilarning balansini qayta hisoblaydi
+    yangi tizimga qarab: daraja va referal soniga ko'ra
+    """
+    # level va get_total_earned_until_refs funksiyalari avvaldan mavjud
+    async with pool.acquire() as conn:
+        users = await conn.fetch("SELECT user_id, referrals FROM users")
+        for u in users:
+            user_id = u['user_id']
+            refs = u['referrals']
+            new_balance = get_total_earned_until_refs(refs)
+            new_level, _ = get_level_by_refs(refs)
+            # balansni yangilash
+            await conn.execute("UPDATE users SET balance=$1, level=$2 WHERE user_id=$3", new_balance, new_level, user_id)
+
+# ------------------ RUN ------------------
 async def main():
     print("🤖 TezRef bot ishga tushdi...")
+    pool = await get_db_pool()
+    await init_db(pool)
+    await recalc_all_balances(pool)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
