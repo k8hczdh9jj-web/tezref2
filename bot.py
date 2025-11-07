@@ -197,6 +197,10 @@ async def check_subscription(callback: types.CallbackQuery):
 async def stats_cmd(message: types.Message):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
+        # real vaqtda referallarni hisoblash
+        total_refs = await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE invited_by=$1", message.from_user.id
+        )
         user = await conn.fetchrow(
             "SELECT balance, referrals, level, blocked FROM users WHERE user_id=$1", 
             message.from_user.id
