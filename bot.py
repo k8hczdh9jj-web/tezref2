@@ -6,6 +6,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
+from urllib.parse import urlparse, parse_qs
 import asyncio
 import os
 import asyncpg
@@ -107,8 +108,13 @@ async def start_cmd(message: types.Message):
 
     user_id = message.from_user.id
     username = message.from_user.username or f"user{user_id}"
-    args = message.text.split()
-    invited_by = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
+
+    # invite_id ni olish uchun Telegram /start argumentini tekshiramiz
+    invited_by = None
+    if message.get_args():  # bu Telegram API orqali /start dan keyingi arglarni beradi
+        arg = message.get_args()
+        if arg.isdigit():
+            invited_by = int(arg)
 
     async with pool.acquire() as conn:
         exists = await conn.fetchval("SELECT 1 FROM users WHERE user_id=$1", user_id)
