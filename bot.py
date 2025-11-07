@@ -133,20 +133,17 @@ async def start_cmd(message: types.Message):
             if invited_by and invited_by != user_id:
                 inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
                 if inviter:
-                    total_refs = await conn.fetchval(
-                        "SELECT COUNT(*) FROM users WHERE invited_by=$1",
-                        invited_by
-                    )
+                    # jami referallar soni bazadagi eski son +1
+                    total_refs = inviter["referrals"] + 1
                     new_level, per_ref = get_level_by_refs(total_refs)
                     new_balance = inviter["balance"] + per_ref
 
                     await conn.execute("""
-                        UPDATE users
-                        SET referrals=$1,
-                            weekly_refs = weekly_refs + 1,
-                            balance = $2,
-                            level = $3
-                        WHERE user_id=$4
+                       UPDATE users
+                       SET referrals=$1,
+                           balance=$2,
+                           level=$3
+                       WHERE user_id=$4
                     """, total_refs, new_balance, new_level, invited_by)
 
 
@@ -220,24 +217,11 @@ async def stats_cmd(message: types.Message):
             "SELECT balance, referrals, level, blocked FROM users WHERE user_id=$1", 
             message.from_user.id
         )
-        # 🔄 Real balansni qayta hisoblash
-        real_balance = get_total_earned_until_refs(total_refs)
-        new_level, _ = get_level_by_refs(total_refs)
-
-        # 🔹 Bazani real vaqtli yangilash
-        await conn.execute(
-            "UPDATE users SET referrals=$1, balance=$2, level=$3 WHERE user_id=$4",
-            total_refs, real_balance, new_level, message.from_user.id
-)
-        if not user:
-            return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz, botni boshqatdan ishga tushiring.")
-
         status = "🟢 Aktiv" if user['blocked'] == 0 else "🔴 Bloklangan"
 
-        
         await message.answer(
             f"📊 <b>Sizning statistikangiz:</b>\n\n"
-            f"👥 Referallar: <b>{total_refs}</b>\n"
+            f"👥 Referallar: <b>{user['referrals']}</b>\n"
             f"💰 Balans: <b>{user['balance']} so‘m</b>\n"
             f"🏅 Daraja: <b>{user['level']}</b>\n"
             f"⚙️ Holat: {status}"
