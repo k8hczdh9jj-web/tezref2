@@ -109,19 +109,23 @@ async def start_cmd(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username or f"user{user_id}"
 
-    # /start argumentini olish
-    args = message.text.split()
-    invited_by = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
+    # /start argumentini olish to'g'ri usul
+    invited_by = None
+    if message.get_args():  # Telegram /start dan keyingi argument
+        arg = message.get_args()
+        if arg.isdigit():
+            invited_by = int(arg)
 
     async with pool.acquire() as conn:
         user = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", user_id)
         if not user:
-            # yangi foydalanuvchi
+            # yangi foydalanuvchi bazaga qo'shiladi
             await conn.execute(
                 "INSERT INTO users (user_id, username, ref_code, invited_by) VALUES ($1,$2,$3,$4)",
                 user_id, username, str(user_id), invited_by
             )
-            # inviterni yangilash
+
+            # inviterni yangilash (referral qo'shish)
             if invited_by and invited_by != user_id:
                 inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
                 if inviter:
