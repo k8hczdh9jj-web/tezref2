@@ -109,31 +109,28 @@ async def start_cmd(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username or f"user{user_id}"
 
-    # invite_id ni olish uchun Telegram /start argumentini tekshiramiz
-    invited_by = None
-    if message.get_args():  # bu Telegram API orqali /start dan keyingi arglarni beradi
-        arg = message.get_args()
-        if arg.isdigit():
-            invited_by = int(arg)
+    # /start argumentini olish
+    args = message.text.split()
+    invited_by = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
     async with pool.acquire() as conn:
-        exists = await conn.fetchval("SELECT 1 FROM users WHERE user_id=$1", user_id)
-        if not exists:
+        user = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", user_id)
+        if not user:
+            # yangi foydalanuvchi
             await conn.execute(
                 "INSERT INTO users (user_id, username, ref_code, invited_by) VALUES ($1,$2,$3,$4)",
                 user_id, username, str(user_id), invited_by
             )
-
-    if invited_by and invited_by != user_id:
-        async with pool.acquire() as conn:
-            inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
-            if inviter:
-                new_refs = inviter['referrals'] + 1
-                new_level, per_ref = get_level_by_refs(new_refs)
-                await conn.execute("""
-                    UPDATE users SET referrals=$1, weekly_refs=weekly_refs+1,
-                    balance=balance+$2, level=$3 WHERE user_id=$4
-                """, new_refs, per_ref, new_level, invited_by)
+            # inviterni yangilash
+            if invited_by and invited_by != user_id:
+                inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
+                if inviter:
+                    new_refs = inviter['referrals'] + 1
+                    new_level, per_ref = get_level_by_refs(new_refs)
+                    await conn.execute("""
+                        UPDATE users SET referrals=$1, weekly_refs=weekly_refs+1,
+                        balance=balance+$2, level=$3 WHERE user_id=$4
+                    """, new_refs, inviter_level := get_level_by_refs(new_refs)[1], new_level, invited_by)
 
     await message.answer(
         f"👋 Salom, <b>{message.from_user.first_name}</b>!\n"
