@@ -127,10 +127,11 @@ async def start_cmd(message: types.Message):
                 if inviter:
                     new_refs = inviter['referrals'] + 1
                     new_level, per_ref = get_level_by_refs(new_refs)
+                    new_balance = inviter['balance'] + per_ref
                     await conn.execute("""
                         UPDATE users SET referrals=$1, weekly_refs=weekly_refs+1,
-                        balance=balance+$2, level=$3 WHERE user_id=$4
-                    """, new_refs, inviter_level := get_level_by_refs(new_refs)[1], new_level, invited_by)
+                        balance=$2, level=$3 WHERE user_id=$4
+                    """, new_refs, new_balance, new_level, invited_by)
 
     await message.answer(
         f"👋 Salom, <b>{message.from_user.first_name}</b>!\n"
