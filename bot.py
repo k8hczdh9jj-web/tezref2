@@ -124,10 +124,10 @@ async def start_cmd(message: types.Message):
             await conn.execute(
                 """
                 INSERT INTO users (user_id, username, ref_code, invited_by, referrals, balance, level, weekly_refs)
-                VALUES ($1,$2,$3,$4,0,0,1,0)
+                VALUES ($1,$2,$3,$4,0,0,'Oddiy',0)
                 """,
                 user_id, username, str(user_id), invited_by
-            )
+)
 
             # 🔹 Agar referal orqali kirgan bo‘lsa — bonus berish
             if invited_by and invited_by != user_id:
@@ -164,7 +164,7 @@ async def start_cmd(message: types.Message):
 # ------------------ CHANNEL CHECK ------------------
 async def is_member(user_id: int) -> bool:
     try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        member = await bot.get_chat_member(CHANNEL_USERNAME.replace('@',''), user_id)
         return member.status in ['creator', 'administrator', 'member']
     except Exception as e:
         print(f"❌ get_chat_member error: {e}")
@@ -220,6 +220,15 @@ async def stats_cmd(message: types.Message):
             "SELECT balance, referrals, level, blocked FROM users WHERE user_id=$1", 
             message.from_user.id
         )
+        # 🔄 Real balansni qayta hisoblash
+        real_balance = get_total_earned_until_refs(total_refs)
+        new_level, _ = get_level_by_refs(total_refs)
+
+        # 🔹 Bazani real vaqtli yangilash
+        await conn.execute(
+            "UPDATE users SET referrals=$1, balance=$2, level=$3 WHERE user_id=$4",
+            total_refs, real_balance, new_level, message.from_user.id
+)
         if not user:
             return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz, botni boshqatdan ishga tushiring.")
 
@@ -242,7 +251,7 @@ class WithdrawState(StatesGroup):
 MIN_WITHDRAW = 5000
 MAX_WITHDRAW = 50000
 
-@dp.message(F.text.lower().contains("pul"))
+@dp.message(F.text == "💰 Pul yechish")
 async def withdraw_cmd(message: types.Message, state: FSMContext):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
@@ -293,11 +302,11 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
         InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"approve_{message.from_user.id}_{amount}"),
         InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"reject_{message.from_user.id}")
     ]])
-
+    username = f"@{message.from_user.username}" if message.from_user.username else f"ID:{message.from_user.id}"
     await bot.send_message(
         ADMIN_ID,
         f"💸 <b>Yangi pul yechish so‘rovi!</b>\n\n"
-        f"👤 Foydalanuvchi: @{message.from_user.username}\n"
+         f"👤 Foydalanuvchi: {username}\n"
         f"🆔 ID: <code>{message.from_user.id}</code>\n"
         f"💳 Karta: <code>{card}</code>\n"
         f"💰 So‘ralgan summa: <b>{amount} so‘m</b>",
