@@ -6,7 +6,6 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-from urllib.parse import urlparse, parse_qs
 import asyncio
 import os
 import asyncpg
@@ -109,10 +108,9 @@ async def start_cmd(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username or f"user{user_id}"
 
-    # Telegram /start dan keyingi argumentni olish
+    # Telegram /start dan keyingi argument
     invited_by = None
     if message.text:
-        # message.text = "/start 12345678"
         parts = message.text.split(maxsplit=1)
         if len(parts) > 1 and parts[1].isdigit():
             invited_by = int(parts[1])
@@ -120,7 +118,6 @@ async def start_cmd(message: types.Message):
     async with pool.acquire() as conn:
         user = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", user_id)
         if not user:
-            # yangi foydalanuvchi bazaga qo'shiladi
             await conn.execute(
                 "INSERT INTO users (user_id, username, ref_code, invited_by) VALUES ($1,$2,$3,$4)",
                 user_id, username, str(user_id), invited_by
@@ -137,6 +134,10 @@ async def start_cmd(message: types.Message):
                         UPDATE users SET referrals=$1, weekly_refs=weekly_refs+1,
                         balance=$2, level=$3 WHERE user_id=$4
                     """, new_refs, new_balance, new_level, invited_by)
+
+    # Foydalanuvchining yangi referral bilan statistikasi
+    async with pool.acquire() as conn:
+        updated_user = await conn.fetchrow("SELECT referrals FROM users WHERE user_id=$1", user_id)
 
     await message.answer(
         f"👋 Salom, <b>{message.from_user.first_name}</b>!\n"
@@ -199,6 +200,7 @@ async def stats_cmd(message: types.Message):
         user = await conn.fetchrow(
             "SELECT balance, referrals, level, blocked FROM users WHERE user_id = $1", message.from_user.id
         )
+
     if user:
         balance, refs, level, blocked = user['balance'], user['referrals'], user['level'], user['blocked']
         status = "🟢 Aktiv" if blocked == 0 else "🔴 Bloklangan"
