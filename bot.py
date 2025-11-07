@@ -306,40 +306,42 @@ async def approve_payout(callback: types.CallbackQuery):
     _, user_id, amount = callback.data.split("_")
     user_id, amount = int(user_id), int(amount)
     pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        # foydalanuvchini bazadan olish
-        user = await conn.fetchrow("SELECT balance FROM users WHERE user_id = $1", user_id)
-        if not user:
-            await callback.answer("❌ Foydalanuvchi topilmadi", show_alert=True)
-            return
 
-        if user['balance'] < amount:
-            await bot.send_message(user_id, "❌ Hisobingizda yetarli mablag‘ yo‘q.")
+    async with pool.acquire() as conn:
+        async with conn.transaction():  # ✅ transaction qo‘shildi
+            # foydalanuvchini bazadan olish
+            user = await conn.fetchrow("SELECT balance FROM users WHERE user_id = $1", user_id)
+            if not user:
+                await callback.answer("❌ Foydalanuvchi topilmadi", show_alert=True)
+                return
+
+            if user['balance'] < amount:
+                await bot.send_message(user_id, "❌ Hisobingizda yetarli mablag‘ yo‘q.")
+                await callback.message.edit_text(
+                    "❌ To‘lov amalga oshmadi — balans yetarli emas.",
+                    reply_markup=None
+                )
+                return
+
+            # 1️⃣ Balansdan pul yechish
+            await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", amount, user_id)
+
+            # 2️⃣ Foydalanuvchiga xabar yuborish
+            await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
+
+            # 3️⃣ Foydalanuvchi statistikasi: referal va levelni yangilash
+            total_refs = await conn.fetchval("SELECT COUNT(*) FROM users WHERE invited_by=$1", user_id)
+            new_level, _ = get_level_by_refs(total_refs)
+            await conn.execute(
+                "UPDATE users SET level=$1, referrals=$2 WHERE user_id=$3",
+                new_level, total_refs, user_id
+            )
+
+            # 4️⃣ Admin xabarini yangilash va tugmalarni olib tashlash
             await callback.message.edit_text(
-                "❌ To‘lov amalga oshmadi — balans yetarli emas.",
+                f"✅ To‘lov tasdiqlandi!\n🆔 ID: {user_id}\n💰 {amount} so‘m",
                 reply_markup=None
             )
-            return
-
-        # 1️⃣ Balansdan pul yechish
-        await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", amount, user_id)
-
-        # 2️⃣ Foydalanuvchiga xabar yuborish
-        await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
-
-        # 3️⃣ Foydalanuvchi statistikasi: referal va levelni yangilash
-        total_refs = await conn.fetchval("SELECT COUNT(*) FROM users WHERE invited_by=$1", user_id)
-        new_level, _ = get_level_by_refs(total_refs)
-        await conn.execute(
-            "UPDATE users SET level=$1, referrals=$2 WHERE user_id=$3",
-            new_level, total_refs, user_id
-        )
-
-        # 4️⃣ Admin xabarini yangilash va tugmalarni olib tashlash
-        await callback.message.edit_text(
-            f"✅ To‘lov tasdiqlandi!\n🆔 ID: {user_id}\n💰 {amount} so‘m",
-            reply_markup=None
-        )
 
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject_payout(callback: types.CallbackQuery):
@@ -416,16 +418,6 @@ async def main():
     print("🤖 TezRef bot ishga tushdi...")
     pool = await get_db_pool()
     await init_db(pool)
-
-    # Yangilangan menyuni foydalanuvchilarga yuborish
-    async with pool.acquire() as conn:
-        users = await conn.fetch("SELECT user_id FROM users")
-        for u in users:
-            try:
-                await bot.send_message(u['user_id'], "🔄 Botimiz ishga tushdi", reply_markup=main_menu())
-            except Exception as e:
-                print(f"User {u['user_id']} ga xabar yuborilmadi: {e}")
-
     await dp.start_polling(bot)
 if __name__ == "__main__":
     asyncio.run(main())
