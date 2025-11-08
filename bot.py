@@ -72,6 +72,18 @@ level = [
     ("Diamond 5", 2500, 9000),
     ("Diamond 6", float('inf'), 10000),
 ]
+# 🔹 BAZADAGI FOYDALANUVCHI LEVELINI REFERAL SONIGA QARAB YANGILASH
+async def update_levels_by_referrals(pool):
+    async with pool.acquire() as conn:
+        users = await conn.fetch("SELECT user_id, referrals FROM users")
+        for user in users:
+            user_id = user['user_id']
+            refs = user['referrals']
+            new_level, _ = get_level_by_refs(refs)
+            await conn.execute(
+                "UPDATE users SET level=$1 WHERE user_id=$2",
+                new_level, user_id
+            )
 
 def get_level_by_refs(refs: int):
     for name, upper, per_ref in level:
@@ -416,6 +428,8 @@ async def main():
     print("🤖 TezRef bot ishga tushdi...")
     pool = await get_db_pool()
     await init_db(pool)
+     # 🔹 Heroku yoki har qanday ishga tushganda darajalarni yangilash
+    await update_levels_by_referrals(pool)
     await dp.start_polling(bot)
 if __name__ == "__main__":
     asyncio.run(main())
