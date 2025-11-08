@@ -55,22 +55,22 @@ async def init_db(pool):
 
 # ------------------ level ------------------
 level = [
-    ("Oddiy", 3, 1500),
-    ("Bronza", 10, 1500),
-    ("Silver", 50, 1500),
-    ("Gold", 250, 1750),
-    ("Platina 1", 500, 2000),
-    ("Platina 2", 1500, 2000),
-    ("Platina 3", 3000, 2500),
-    ("Platina 4", 4500, 3000),
-    ("Platina 5", 6000, 3500),
-    ("Platina 6", 8000, 4000),
-    ("Diamond 1", 10000, 5500),
-    ("Diamond 2", 13500, 6000),
-    ("Diamond 3", 17000, 7000),
-    ("Diamond 4", 21000, 8000),
-    ("Diamond 5", 26000, 9000),
-    ("Diamond 6", float('inf'), 10000),
+    ("Oddiy", 3, 500),
+    ("Bronza", 10, 750),
+    ("Silver", 50, 1000),
+    ("Gold", 250, 1250),
+    ("Platina 1", 500, 1500),
+    ("Platina 2", 1500, 1750),
+    ("Platina 3", 3000, 2000),
+    ("Platina 4", 4500, 2500),
+    ("Platina 5", 6000, 3000),
+    ("Platina 6", 8000, 3500),
+    ("Diamond 1", 10000, 4000),
+    ("Diamond 2", 13500, 4500),
+    ("Diamond 3", 17000, 5000),
+    ("Diamond 4", 21000, 5500),
+    ("Diamond 5", 26000, 6000),
+    ("Diamond 6", float('inf'), 7000),
 ]
 # 🔹 BAZADAGI FOYDALANUVCHI LEVELINI REFERAL SONIGA QARAB YANGILASH
 async def update_levels_by_referrals(pool):
