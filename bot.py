@@ -57,19 +57,19 @@ async def init_db(pool):
 level = [
     ("Oddiy", 3, 1500),
     ("Bronza", 10, 1750),
-    ("Silver", 20, 2000),
-    ("Gold", 35, 2250),
-    ("Platina 1", 55, 2500),
-    ("Platina 2", 75, 2750),
-    ("Platina 3", 100, 3000),
-    ("Platina 4", 140, 3500),
-    ("Platina 5", 190, 4000),
-    ("Platina 6", 245, 4500),
-    ("Diamond 1", 300, 5500),
-    ("Diamond 2", 400, 6000),
-    ("Diamond 3", 600, 7000),
-    ("Diamond 4", 1000, 8000),
-    ("Diamond 5", 2500, 9000),
+    ("Silver", 50, 2000),
+    ("Gold", 90, 2250),
+    ("Platina 1", 130, 2500),
+    ("Platina 2", 170, 2750),
+    ("Platina 3", 200, 3000),
+    ("Platina 4", 210, 3500),
+    ("Platina 5", 215, 4000),
+    ("Platina 6", 220, 4500),
+    ("Diamond 1", 800, 5500),
+    ("Diamond 2", 2000, 6000),
+    ("Diamond 3", 4000, 7000),
+    ("Diamond 4", 6000, 8000),
+    ("Diamond 5", 9000, 9000),
     ("Diamond 6", float('inf'), 10000),
 ]
 # 🔹 BAZADAGI FOYDALANUVCHI LEVELINI REFERAL SONIGA QARAB YANGILASH
@@ -244,8 +244,8 @@ class WithdrawState(StatesGroup):
     card = State()
     amount = State()
 
-MIN_WITHDRAW = 5000
-MAX_WITHDRAW = 50000
+MIN_WITHDRAW = 60000
+MAX_WITHDRAW = 500000
 
 @dp.message(F.text == "💰 Pul yechish")
 async def withdraw_cmd(message: types.Message, state: FSMContext):
