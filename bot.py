@@ -559,24 +559,26 @@ async def contact_admin(message: types.Message):
 async def broadcast_new_menu():
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        users = await conn.fetch("SELECT user_id FROM users WHERE blocked=0")
+        users = await conn.fetch("SELECT user_id, blocked FROM users WHERE blocked=0")
 
-    for user in users:
-        try:
-            await bot.send_message(
-                user['user_id'],
-                "📢 Diqqat! Bot menyusi yangilandi. Endi Promokod bo‘limi va boshqa tugmalarni avtomatik ishlatishingiz mumkin.",
-                reply_markup=main_menu()  # main_menu() funksiyasi bilan yangilangan menyu
-            )
-        except Exception as e:
-            # Telegramdagi maxsus xatolarni ajratish
-            error_text = str(e)
-            if "bot was blocked by the user" in error_text or "user is deactivated" in error_text:
-                # Bunday foydalanuvchini keyingi safar xabar bermaslik uchun belgilash
-                await conn.execute("UPDATE users SET blocked=1 WHERE user_id=$1", user['user_id'])
-                print(f"❌ Foydalanuvchi {user['user_id']} bloklagan yoki hisob o'chirilgan, keyingi safar xabar yuborilmaydi.")
-            else:
-                print(f"❌ Xabar yuborilmadi {user['user_id']}: {e}")
+        for user in users:
+            try:
+                await bot.send_message(
+                    user['user_id'],
+                    "📢 Yangilik! Promokod tizimi ishga tushdi."
+                )
+            except Exception as e:
+                error_text = str(e)
+                # Foydalanuvchi botni bloklagan yoki hisobini o'chirgan
+                if "bot was blocked by the user" in error_text or "user is deactivated" in error_text:
+                    # Shu yerda connection hali ochiq bo'lishi kerak
+                    await conn.execute(
+                        "UPDATE users SET blocked=1 WHERE user_id=$1",
+                        user['user_id']
+                    )
+                    print(f"❌ Foydalanuvchi {user['user_id']} bloklagan yoki hisob o'chirilgan")
+                else:
+                    print(f"❌ Xabar yuborilmadi {user['user_id']}: {e}")
 
 
 # ------------------ RUN ------------------
