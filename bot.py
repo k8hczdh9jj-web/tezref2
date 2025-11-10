@@ -554,31 +554,6 @@ async def show_ranking(message: types.Message):
 async def contact_admin(message: types.Message):
     await message.answer(f"📞 Admin bilan bog‘laning: @{ADMIN_USERNAME}")
 
-# ------------------ BROADCAST NEW MENU ------------------
-
-async def broadcast_new_menu():
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        users = await conn.fetch("SELECT user_id, blocked FROM users WHERE blocked=0")
-
-        for user in users:
-            try:
-                await bot.send_message(
-                    user['user_id'],
-                    "📢 Yangilik! Promokod tizimi ishga tushdi."
-                )
-            except Exception as e:
-                error_text = str(e)
-                # Foydalanuvchi botni bloklagan yoki hisobini o'chirgan
-                if "bot was blocked by the user" in error_text or "user is deactivated" in error_text:
-                    # Shu yerda connection hali ochiq bo'lishi kerak
-                    await conn.execute(
-                        "UPDATE users SET blocked=1 WHERE user_id=$1",
-                        user['user_id']
-                    )
-                    print(f"❌ Foydalanuvchi {user['user_id']} bloklagan yoki hisob o'chirilgan")
-                else:
-                    print(f"❌ Xabar yuborilmadi {user['user_id']}: {e}")
 
 
 # ------------------ RUN ------------------
@@ -586,7 +561,6 @@ async def main():
     print("🤖 TezRef bot ishga tushdi...")
     pool = await get_db_pool()
     await init_db(pool)
-    await broadcast_new_menu()
     await dp.start_polling(bot)
 if __name__ == "__main__":
     asyncio.run(main())
