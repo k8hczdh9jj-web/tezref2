@@ -557,7 +557,6 @@ async def contact_admin(message: types.Message):
 # ------------------ BROADCAST NEW MENU ------------------
 
 async def broadcast_new_menu():
-    """Barcha foydalanuvchilarga yangilangan menyu haqida xabar yuboradi"""
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         users = await conn.fetch("SELECT user_id FROM users WHERE blocked=0")
@@ -566,11 +565,18 @@ async def broadcast_new_menu():
         try:
             await bot.send_message(
                 user['user_id'],
-                "📢 Diqqat! Bot menyusi yangilandi. Endi Promokod bo‘limi mavjud.",
-                reply_markup=main_menu()  # Yangilangan menyu
+                "📢 Diqqat! Bot menyusi yangilandi. Endi Promokod bo‘limi va boshqa tugmalarni avtomatik ishlatishingiz mumkin.",
+                reply_markup=main_menu()  # main_menu() funksiyasi bilan yangilangan menyu
             )
         except Exception as e:
-            print(f"❌ Xabar yuborilmadi {user['user_id']}: {e}")
+            # Telegramdagi maxsus xatolarni ajratish
+            error_text = str(e)
+            if "bot was blocked by the user" in error_text or "user is deactivated" in error_text:
+                # Bunday foydalanuvchini keyingi safar xabar bermaslik uchun belgilash
+                await conn.execute("UPDATE users SET blocked=1 WHERE user_id=$1", user['user_id'])
+                print(f"❌ Foydalanuvchi {user['user_id']} bloklagan yoki hisob o'chirilgan, keyingi safar xabar yuborilmaydi.")
+            else:
+                print(f"❌ Xabar yuborilmadi {user['user_id']}: {e}")
 
 
 # ------------------ RUN ------------------
