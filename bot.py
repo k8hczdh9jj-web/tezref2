@@ -86,14 +86,14 @@ level = [
     ("Platina 2", 450, 3000),
     ("Platina 3", 600, 3500),
     ("Platina 4", 800, 4000),
-    ("Platina 5", 1200, 5000),
-    ("Platina 6", 1800, 6000),
-    ("Diamond 1", 2500, 7000),
-    ("Diamond 2", 3200, 8000),
-    ("Diamond 3", 4000, 2250),
-    ("Diamond 4", 5000, 2250),
-    ("Diamond 5", 6000, 2250),
-    ("Diamond 6", float('inf'), 2250),
+    ("Platina 5", 1200, 4000),
+    ("Platina 6", 1800, 4000),
+    ("Diamond 1", 2500, 4000),
+    ("Diamond 2", 3200, 4000),
+    ("Diamond 3", 4000, 4000),
+    ("Diamond 4", 5000, 4000),
+    ("Diamond 5", 6000, 4000),
+    ("Diamond 6", float('inf'), 4000),
 ]
 # 🔹 BAZADAGI FOYDALANUVCHI LEVELINI REFERAL SONIGA QARAB YANGILASH
 async def update_levels_by_referrals(pool):
