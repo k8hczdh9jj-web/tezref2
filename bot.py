@@ -87,12 +87,12 @@ level = [
     ("Platina 3", 800, 3500),
     ("Platina 4", 1100, 4000),
     ("Platina 5", 1500, 4000),
-    ("Platina 6", 2000, 4000),
-    ("Diamond 1", 2600, 4000),
-    ("Diamond 2", 3200, 4000),
-    ("Diamond 3", 4200, 4000),
-    ("Diamond 4", 5500, 4000),
-    ("Diamond 5", 7000, 4000),
+    ("Platina 6", 4000, 4000),
+    ("Diamond 1", 10000, 4000),
+    ("Diamond 2", 18000, 4000),
+    ("Diamond 3", 28000, 4000),
+    ("Diamond 4", 40000, 4000),
+    ("Diamond 5", 60000, 4000),
     ("Diamond 6", float('inf'), 4000),
 ]
 # 🔹 BAZADAGI FOYDALANUVCHI LEVELINI REFERAL SONIGA QARAB YANGILASH
