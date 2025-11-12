@@ -441,7 +441,7 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
         f"💰 So‘ralgan summa: <b>{amount} so‘m</b>",
         reply_markup=markup
     )
-    await message.answer("✅ So‘rovingiz adminga yuborildi. To‘lov 24 soat ichida amalga oshiriladi.")
+    await message.answer("✅ So‘rovingiz yuborildi. To‘lov 24 soat ichida amalga oshiriladi.")
     await state.clear()
 
 @dp.callback_query(F.data.startswith("approve_"))
