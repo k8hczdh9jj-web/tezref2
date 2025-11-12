@@ -381,6 +381,7 @@ MAX_WITHDRAW = 100000
 
 @dp.message(F.text == "💰 Pul yechish")
 async def withdraw_cmd(message: types.Message, state: FSMContext):
+    await state.clear()
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow("SELECT balance, blocked FROM users WHERE user_id = $1", message.from_user.id)
