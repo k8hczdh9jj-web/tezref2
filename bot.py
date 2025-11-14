@@ -377,7 +377,7 @@ class WithdrawState(StatesGroup):
     amount = State()
 
 MIN_WITHDRAW = 60000
-MAX_WITHDRAW = 600000
+MAX_WITHDRAW = 100000
 
 @dp.message(F.text == "💰 Pul yechish")
 async def withdraw_cmd(message: types.Message, state: FSMContext):
