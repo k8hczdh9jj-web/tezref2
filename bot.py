@@ -54,6 +54,12 @@ async def init_db(pool):
                 blocked INTEGER DEFAULT 0
             )
         """)
+
+        await conn.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS pending_withdraw BOOLEAN DEFAULT FALSE;
+        """)
+
         # --- PROMOKOD JADVALLARI ---
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS promo_codes (
@@ -384,12 +390,14 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
     await state.clear()
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT balance, blocked FROM users WHERE user_id = $1", message.from_user.id)
+        user = await conn.fetchrow("SELECT balance, blocked, pending_withdraw FROM users WHERE user_id = $1", message.from_user.id)
 
     if not user:
         return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
     if user['blocked'] == 1:
         return await message.answer("🚫 Sizning akkauntingiz bloklangan.")
+    if user['pending_withdraw']:
+        return await message.answer("⏳ Sizda avval yuborilgan pul yechish so‘rovi mavjud. Iltimos, tasdiqlanishini kuting.")
     if user['balance'] < MIN_WITHDRAW:
         return await message.answer(f"❗ Pul yechish uchun kamida <b>{MIN_WITHDRAW:,} so‘m</b> kerak.")
 
@@ -441,7 +449,10 @@ async def get_withdraw_amount(message: types.Message, state: FSMContext):
         f"💰 So‘ralgan summa: <b>{amount} so‘m</b>",
         reply_markup=markup
     )
-    await message.answer("✅ So‘rovingiz yuborildi. To‘lov 24 soat ichida amalga oshiriladi.")
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET pending_withdraw = TRUE WHERE user_id = $1", message.from_user.id)
+
+    await message.answer("🕐 So‘rovingiz yuborildi. Iltimos, tasdiqlanishini kuting.")
     await state.clear()
 
 @dp.callback_query(F.data.startswith("approve_"))
@@ -469,6 +480,9 @@ async def approve_payout(callback: types.CallbackQuery):
             # 1️⃣ Balansdan pul yechish
             await conn.execute("UPDATE users SET balance = balance - $1 WHERE user_id = $2", amount, user_id)
 
+            # “1️⃣ Balansdan pul yechish”dan keyin qo‘shamiz
+            await conn.execute("UPDATE users SET pending_withdraw = FALSE WHERE user_id = $1", user_id)
+
             # 2️⃣ Foydalanuvchiga xabar yuborish
             await bot.send_message(user_id, f"✅ <b>{amount} so‘m</b> to‘lov amalga oshirildi 💸")
 
@@ -489,6 +503,11 @@ async def approve_payout(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject_payout(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[1])
+
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET pending_withdraw = FALSE WHERE user_id = $1", user_id)
+
     await bot.send_message(user_id, "❌ Sizning pul yechish so‘rovingiz bekor qilindi.")
     await callback.message.edit_text(
         f"❌ Pul yechish so‘rovi bekor qilindi.\n🆔 ID: {user_id}",
