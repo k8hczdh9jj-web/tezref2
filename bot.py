@@ -383,7 +383,7 @@ class WithdrawState(StatesGroup):
     amount = State()
 
 MIN_WITHDRAW = 60000
-MAX_WITHDRAW = 500000
+MAX_WITHDRAW = 100000
 
 
 # ------------------ pul yechish (o'zgartirilgan) ------------------
