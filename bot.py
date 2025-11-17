@@ -385,6 +385,16 @@ class WithdrawState(StatesGroup):
 MIN_WITHDRAW = 60000
 MAX_WITHDRAW = 100000
 
+# ------------------ CHANNEL CHECK (yangi: channel parametr bilan) ------------------
+async def is_member(user_id: int, channel: str = CHANNEL_USERNAME) -> bool:
+    try:
+        member = await bot.get_chat_member(channel, user_id)
+        return member.status in ['creator', 'administrator', 'member']
+    except Exception as e:
+        print(f"❌ get_chat_member error: {e}")
+        return False
+
+# ------------------ pul yechish (o'zgartirilgan) ------------------
 @dp.message(F.text == "💰 Pul yechish")
 async def withdraw_cmd(message: types.Message, state: FSMContext):
     await state.clear()
@@ -398,11 +408,43 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
         return await message.answer("🚫 Sizning akkauntingiz bloklangan.")
     if user['pending_withdraw']:
         return await message.answer("⏳ Sizda avval yuborilgan pul yechish so‘rovi mavjud. Iltimos, tasdiqlanishini kuting.")
+    
+    # --- Kanalga a'zo ekanligini tekshiramiz ---
+    if not await is_member(message.from_user.id, CHANNEL_USERNAME):
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Kanalga obuna bo‘lish", url=f"https://t.me/{CHANNEL_USERNAME.replace('@','')}")],
+            [InlineKeyboardButton(text="✅ A’zo bo‘ldim", callback_data="check_withdraw_subs")]
+        ])
+        return await message.answer("⚠️ Pul yechish uchun avval kanalga a’zo bo‘ling:", reply_markup=markup)
+    
     if user['balance'] < MIN_WITHDRAW:
-        return await message.answer(f"❗ Pul yechish uchun kamida <b>{MIN_WITHDRAW:,} so‘m</b> kerak.")
+        return await message.answer(f"❗ Pul yechish uchun kamida <b>{MIN_WITHDRAW:,} so‘m</b> kerak.", parse_mode=ParseMode.HTML)
 
+    # Agar a'zo bo'lsa — oddiy jarayonni boshlaymiz
     await message.answer("💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
     await state.set_state(WithdrawState.card)
+
+# ------------------ callback: kanalga a'zo bo'ldim (pul yechish uchun) ------------------
+@dp.callback_query(F.data == "check_withdraw_subs")
+async def check_withdraw_subs(callback: types.CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+
+    # 5 marta tekshirib ko'rish (foydalanuvchi obuna bo'lib, keyin qaytib bosadi)
+    for _ in range(5):
+        try:
+            member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
+            if member.status in ['creator', 'administrator', 'member']:
+                # foydalanuvchini xabarga qayta yo'naltiramiz va FSMni boshlaymiz
+                await callback.message.edit_text("✅ A’zo bo‘lganingiz uchun rahmat!\n\n💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
+                await state.set_state(WithdrawState.card)
+                # hamma ok, tugmani bosgandan keyingi bosqich uchun clear qilib tugmasiz qoldirish
+                return
+        except Exception as e:
+            print(f"❌ get_chat_member error in check_withdraw_subs: {e}")
+        await asyncio.sleep(2)
+
+    # agar hali a'zo bo'lmasa:
+    await callback.answer("❌ Siz hali kanalga a’zo bo‘lmagansiz!", show_alert=True)
 
 @dp.message(WithdrawState.card)
 async def get_card_number(message: types.Message, state: FSMContext):
