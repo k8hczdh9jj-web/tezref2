@@ -389,24 +389,19 @@ MAX_WITHDRAW = 100000
 # ------------------ pul yechish (o'zgartirilgan) ------------------
 @dp.message(F.text == "💰 Pul yechish")
 async def withdraw_cmd(message: types.Message, state: FSMContext):
+    # Bu yerdagi barcha eski kodni o'chirib, o'rniga quyidagini qo'shing:
     await state.clear()
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT balance, blocked, pending_withdraw FROM users WHERE user_id = $1", message.from_user.id)
-
-    if not user:
-        return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
-    if user['blocked'] == 1:
-        return await message.answer("🚫 Sizning akkauntingiz bloklangan.")
-    if user['pending_withdraw']:
-        return await message.answer("⏳ Sizda avval yuborilgan pul yechish so‘rovi mavjud. Iltimos, tasdiqlanishini kuting.")
-        
-    if user['balance'] < MIN_WITHDRAW:
-        return await message.answer(f"❗ Pul yechish uchun kamida <b>{MIN_WITHDRAW:,} so‘m</b> kerak.", parse_mode=ParseMode.HTML)
-
-    # Agar a'zo bo'lsa — oddiy jarayonni boshlaymiz
-    await message.answer("💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
-    await state.set_state(WithdrawState.card)
+    
+    # 🛑 TEXNIK ISHLAR SABABLIK VAQTINCHALIK TO'XTATISH
+    await message.answer(
+        "🛠️ **Texnik ishlar olib borilmoqda.**\n\n"
+        "Pul yechish funksiyasi tez orada qayta ishga tushadi. Noqulayliklar uchun uzr so‘raymiz.",
+        parse_mode=ParseMode.MARKDOWN
+    )
+    # ----------------------------------------------------
+    
+    # Qolgan funksiya ishlashi shart emas, shu yerda tugaydi
+    return
 
 
 @dp.message(WithdrawState.card)
