@@ -86,7 +86,7 @@ async def start_create_team(message: types.Message, state: FSMContext):
     if user['team_id']:
         return await message.answer("❌ Siz allaqachon jamoada ishtirokchisiz.")
     if (user['referrals'] or 0) < 10:
-        return await message.answer("❌ Jamoa yaratish uchun kamida 30 ta referalingiz bo‘lishi kerak.")
+        return await message.answer("❌ Jamoa yaratish uchun kamida 10 ta referalingiz bo‘lishi kerak.")
         
     await state.set_state(CreateTeamFSM.waiting_for_name)
     await message.answer("Jamoa nomini kiriting (noqulay so‘z ishlatmang):", reply_markup=ReplyKeyboardMarkup(
