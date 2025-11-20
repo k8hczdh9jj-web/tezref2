@@ -1,0 +1,104 @@
+# handlers/start.py
+import re
+from aiogram import Router, types, F
+from aiogram.filters import CommandStart
+from aiogram.enums import ParseMode
+from database import get_db_pool # init_db ni import qilish shart emas
+from utils.levels import get_level_by_refs
+from config import CHANNEL_USERNAME # Ishlatilgan bo'lsa qolsin
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton # main_menu uchun
+
+router = Router()
+
+# 📌 Main menu function (startda kerak bo‘ladi)
+def main_menu():
+    buttons = [
+        [KeyboardButton(text="📢 Referal havola"), KeyboardButton(text="👥 Jamoa")],
+        [KeyboardButton(text="💰 Pul yechish"), KeyboardButton(text="📊 Statistika")],
+        [KeyboardButton(text="🎁 Promokod"), KeyboardButton(text="🏆 Reyting")],
+        [KeyboardButton(text="📞 Adminga murojaat")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+
+async def register_user(conn, user_id, username, invited_by=None):
+    """Foydalanuvchini bazaga kiritadi va agar referal bo'lsa, bonus beradi."""
+    
+    # Ro'yxatdan o'tkazish
+    await conn.execute("""
+        INSERT INTO users (user_id, username, ref_code, invited_by, referrals, balance, level, weekly_refs)
+        VALUES ($1,$2,$3,$4,0,0,'Oddiy',0)
+        ON CONFLICT (user_id) DO NOTHING
+    """, user_id, username, str(user_id), invited_by)
+
+    # Agar referal orqali kirgan bo‘lsa bonus (faqat yangi qo'shilganlar uchun)
+    if invited_by and invited_by != user_id:
+        inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
+        if inviter:
+            # Referal bonus mantiqi
+            total_refs = inviter["referrals"] + 1
+            new_level, per_ref = get_level_by_refs(total_refs)
+            new_balance = inviter["balance"] + per_ref
+
+            await conn.execute("""
+                UPDATE users
+                SET referrals=$1, balance=$2, level=$3
+                WHERE user_id=$4
+            """, total_refs, new_balance, new_level, invited_by)
+            
+            # Yangi userning ID sini inviterga qo'shdik.
+
+# ------------------ /start handler ------------------
+@router.message(CommandStart())
+async def start_cmd(message: types.Message):
+    pool = await get_db_pool()
+    user_id = message.from_user.id
+    username = message.from_user.username or f"user{user_id}"
+    
+    # 1. 🔹 /start dagi parametrni ajratib olish
+    start_param = None
+    if len(message.text.split()) > 1:
+        start_param = message.text.split()[1]
+
+    # Referal IDni ajratish
+    invited_by = None
+    if start_param and start_param.isdigit():
+        invited_by = int(start_param)
+
+    async with pool.acquire() as conn:
+        user_in_db = await conn.fetchrow("SELECT user_id FROM users WHERE user_id=$1", user_id)
+        
+        # Ro'yxatdan o'tish mantiqi: Agar user bazada bo'lmasa, uni yaratamiz
+        if not user_in_db:
+            await register_user(conn, user_id, username, invited_by)
+            
+    # 2. 🛡️ Jamoa taklifini tekshirish (start=team_ID)
+    if start_param and start_param.startswith("team_"):
+        try:
+            team_id = int(start_param.removeprefix("team_"))
+            
+            # 👇 AYLANA IMPORT MUAMMOLARI UCHUN FUNKSIYA ICHIDA IMPORT QILISH
+            from .team import process_team_invite 
+            
+            # Jamoaga qo'shish jarayonini chaqiramiz
+            is_handled = await process_team_invite(message, team_id)
+            if is_handled:
+                # Agar jamoa linki muvaffaqiyatli boshqarilgan bo'lsa, shu yerda tugatamiz
+                return 
+            
+        except ValueError:
+            # team_ID raqam emas, keyingi logikaga o'tamiz
+            pass 
+        except ImportError:
+            # Agar funksiya ichidagi import ham ishlamasa
+            await message.answer("Xatolik: Jamoaga qo'shilish funksiyasi yuklanmadi. Oddiy menyu yuklandi.", reply_markup=main_menu())
+            return
+
+    # 3. 📝 Standart xabar yuborish 
+    # (Faqat agar yuqorida jamoa linki orqali qaytarilmagan bo'lsa)
+    await message.answer(
+        f"👋 Salom, <b>{message.from_user.first_name}</b>!\n"
+        "💸 TezRef botga xush kelibsiz!\n"
+        "Pul ishlashni boshlash uchun menyudan foydalaning.",
+        reply_markup=main_menu(),
+        parse_mode=ParseMode.HTML
+    )
