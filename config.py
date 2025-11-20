@@ -3,7 +3,7 @@ import ssl
 
 # ------------------ BOT CONFIG ------------------
 # Token va adminlar ma'lumotlari
-API_TOKEN = "8214794826:AAG6q7Nxg6k-HJ_rkh_s3dv2S_xHkBZcBHo"
+API_TOKEN = "8401942831:AAF7rQa6UC7YGNyIk9gdx1XnaiyxZlt5lJA"
 ADMIN_ID = 496829881
 ADMIN_USERNAME = "tezref_admin1"
 

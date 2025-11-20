@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest # Xatolarni boshqarish uchun
 import asyncio
-from config import ADMIN_ID, CHANNEL_USERNAME
+from config import ADMIN_ID, CHANNEL_USERNAME 
 from database import get_db_pool
 
 router = Router()

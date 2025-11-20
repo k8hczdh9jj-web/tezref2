@@ -4,7 +4,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 import asyncio
 
 from config import API_TOKEN
-from database import get_db_pool, init_db
+from database import get_db_pool, init_db 
 
 from handlers import (
     start_router,

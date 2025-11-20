@@ -1,6 +1,6 @@
 # database.py
 import asyncpg
-from config import DATABASE_URL, ssl_context
+from config import DATABASE_URL, ssl_context 
 
 db_pool = None
 

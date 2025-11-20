@@ -10,7 +10,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.exceptions import TelegramBadRequest
 from database import get_db_pool
-from utils.levels import get_team_level
+from utils.levels import get_team_level 
 from math import ceil
 from datetime import datetime, timedelta
 

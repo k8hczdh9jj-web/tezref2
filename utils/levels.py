@@ -1,4 +1,4 @@
-# levels.py
+# levels.py 
 
 TEAM_LEVELS = [
     ("Oddiy", 0, 5), ("Bronza",6,20), ("Silver",21,80),

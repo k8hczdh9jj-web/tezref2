@@ -7,7 +7,7 @@ from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 
 from database import get_db_pool
 from config import ADMIN_ID 
-from handlers.start import main_menu 
+from handlers.start import main_menu  
 
 admin_broadcast_router = Router()
 ADMIN_ID = 496829881 

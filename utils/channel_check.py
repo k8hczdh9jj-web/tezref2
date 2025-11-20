@@ -1,5 +1,5 @@
 from aiogram import Bot
-from config import CHANNEL_USERNAME, CHANNEL_USERNAME_2
+from config import CHANNEL_USERNAME, CHANNEL_USERNAME_2 
 
 async def is_member_channel_1(bot: Bot, user_id: int) -> bool:
     try:

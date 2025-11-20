@@ -1,4 +1,4 @@
-from config import CHANNEL_USERNAME
+from config import CHANNEL_USERNAME 
 
 async def is_member(bot, user_id: int, channel: str = CHANNEL_USERNAME) -> bool:
     try:

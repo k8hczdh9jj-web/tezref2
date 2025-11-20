@@ -4,7 +4,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from utils.channel_check import is_member_channel_2
 from config import CHANNEL_USERNAME_2, ADMIN_ID
-from database import get_db_pool
+from database import get_db_pool 
 from asyncpg import UniqueViolationError
 
 
