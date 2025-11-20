@@ -31,34 +31,19 @@ async def is_member(bot, user_id: int, channel: str = CHANNEL_USERNAME) -> bool:
 # ------------------ Pul yechish ------------------
 @router.message(F.text == "💰 Pul yechish")
 async def withdraw_cmd(message: types.Message, state: FSMContext):
+    # Bu yerdagi barcha eski kodni o'chirib, o'rniga quyidagini qo'shing:
     await state.clear()
-    bot = message.bot
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        user = await conn.fetchrow(
-            "SELECT balance, blocked, pending_withdraw FROM users WHERE user_id = $1",
-            message.from_user.id
-        )
-
-    if not user:
-        return await message.answer("Siz hali ro‘yxatdan o‘tmagansiz.")
-    if user['blocked'] == 1:
-        return await message.answer("🚫 Sizning akkauntingiz bloklangan.")
-    if user['pending_withdraw']:
-        return await message.answer("⏳ Sizda avvalgi pul yechish so‘rovi tekshirilmoqda.")
-
-    if not await is_member(bot, message.from_user.id, CHANNEL_USERNAME):
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Kanalga obuna bo‘lish", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
-            [InlineKeyboardButton(text="✅ A’zo bo‘ldim", callback_data="check_withdraw_subs")]
-        ])
-        return await message.answer("⚠️ Pul yechish uchun avval kanalga a’zo bo‘ling:", reply_markup=markup)
-
-    if user['balance'] < MIN_WITHDRAW:
-        return await message.answer(f"❗ Pul yechish uchun kamida <b>{MIN_WITHDRAW:,} so‘m</b> kerak.")
-
-    await message.answer("💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
-    await state.set_state(WithdrawState.card)
+    
+    # 🛑 TEXNIK ISHLAR SABABLIK VAQTINCHALIK TO'XTATISH
+    await message.answer(
+        "🛠️ **Texnik ishlar olib borilmoqda.**\n\n"
+        "Pul yechish funksiyasi tez orada qayta ishga tushadi. Noqulayliklar uchun uzr so‘raymiz.",
+        parse_mode=ParseMode.MARKDOWN
+    )
+    # ----------------------------------------------------
+    
+    # Qolgan funksiya ishlashi shart emas, shu yerda tugaydi
+    return
 
 
 @router.callback_query(F.data == "check_withdraw_subs")
