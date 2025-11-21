@@ -678,7 +678,7 @@ async def show_teams_rating(message: types.Message):
     if not top_teams:
         return await message.answer("🏆 Hozircha reytingga kiritish uchun jamoalar yetarli emas.")
 
-    text = "🏆 **Top 10 Jamoalar Reytingi**\n\n"
+    text = "🏆 <b>Top 10 Jamoalar Reytingi<b>\n\n"
     
     # Emoji bilan chiroyli formatlash
     EMOJIS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"] 
