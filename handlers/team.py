@@ -688,14 +688,14 @@ async def show_teams_rating(message: types.Message):
         
         # Talab qilingan format: 🥇 **1-O'rin** | **Team_A** | 💰 1500 tanga | 👥 12 a'zo
         text += (
-            f"{emoji} **-** **{t['team_name']} jamoasi** | 💰 {t['team_coins']} tanga | 👥 {t['members_count']} a'zo\n"
+            f"{emoji} <b>-<b> <b>{t['team_name']} jamoasi<b> | 💰 {t['team_coins']} tanga | 👥 {t['members_count']} a'zo\n"
         )
         
         # Oxirgi jamoa uchun chiziqcha qo'shmaymiz
         if i < len(top_teams):
              text += "--- \n"
     
-    await message.answer(text, parse_mode=ParseMode.MARKDOWN)
+    await message.answer(text, parse_mode=ParseMode.HTML)
 
 @team_router.message(F.text == "🔙 Ortga")
 async def back_to_main_menu(message: types.Message):
