@@ -678,7 +678,7 @@ async def show_teams_rating(message: types.Message):
     if not top_teams:
         return await message.answer("🏆 Hozircha reytingga kiritish uchun jamoalar yetarli emas.")
 
-    text = "🏆 <b>Top 10 Jamoalar Reytingi<b>\n\n"
+    text = "🏆 <b>Top 10 Jamoalar Reytingi</b>\n\n"
     
     # Emoji bilan chiroyli formatlash
     EMOJIS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"] 
@@ -688,7 +688,7 @@ async def show_teams_rating(message: types.Message):
         
         # Talab qilingan format: 🥇 **1-O'rin** | **Team_A** | 💰 1500 tanga | 👥 12 a'zo
         text += (
-            f"{emoji} <b>-<b> <b>{t['team_name']} jamoasi<b> | 💰 {t['team_coins']} tanga | 👥 {t['members_count']} a'zo\n"
+            f"{emoji} <b>-</b> <b>{t['team_name']} jamoasi</b> | 💰 {t['team_coins']} tanga | 👥 {t['members_count']} a'zo\n"
         )
         
         # Oxirgi jamoa uchun chiziqcha qo'shmaymiz
