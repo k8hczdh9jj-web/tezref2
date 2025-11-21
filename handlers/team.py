@@ -693,7 +693,7 @@ async def show_teams_rating(message: types.Message):
         
         # Oxirgi jamoa uchun chiziqcha qo'shmaymiz
         if i < len(top_teams):
-             text += "--- \n"
+             text += "\n"
     
     await message.answer(text, parse_mode=ParseMode.HTML)
 
