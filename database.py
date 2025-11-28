@@ -1,5 +1,5 @@
 # database.py
-import asyncpg
+import asyncpg 
 from config import DATABASE_URL, ssl_context 
 
 db_pool = None
@@ -103,6 +103,21 @@ async def init_db(pool):
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                 UNIQUE (team_id, user_id)
             );
+        """)
+
+                        # Reklama linki uchun jadval
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS ads_link (
+                id SERIAL PRIMARY KEY,
+                link TEXT NOT NULL
+            );
+        """)
+
+        # Agar jadval bo‘sh bo‘lsa — default link qo‘shib qo‘yamiz
+        await conn.execute("""
+            INSERT INTO ads_link (link)
+            SELECT 'https://t.me/default_group'
+            WHERE NOT EXISTS (SELECT 1 FROM ads_link);
         """)
 
         print("Database initialized successfully 🔌")

@@ -7,7 +7,8 @@ from .team import team_router
 from .withdraw import router as withdraw_router
 from .rating import rating_router
 from .contact_admin import router as contact_admin_router
-from .admin_broadcast import admin_broadcast_router 
+from .admin_broadcast import admin_broadcast_router
+from .admin_ads_router import admin_ads_router
 
 # Hammasini eksport qilish
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "rating_router",
     "contact_admin_router",
     "admin_broadcast_router",
+    "admin_ads_router",
 ]
