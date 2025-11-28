@@ -73,7 +73,7 @@ async def send_ads(message: Message, state: FSMContext):
     # ✅ InlineKeyboardMarkup yaratish pydantic uchun mos usulda
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔥 Guruhga qo‘shilish", url=ads_link)]
+            [InlineKeyboardButton(text="🔥 100.000 so‘mni olish", url=ads_link)]
         ]
     )
 
