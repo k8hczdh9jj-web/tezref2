@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest # Xatolarni boshqarish uchun
 import asyncio
-from config import ADMIN_ID, CHANNEL_USERNAME 
+from config import ADMIN_ID, CHANNEL_ID_2
 from database import get_db_pool
 
 router = Router()
@@ -18,11 +18,19 @@ class WithdrawState(StatesGroup):
 MIN_WITHDRAW = 60000
 MAX_WITHDRAW = 100000
 
-# ------------------ CHANNEL CHECK ------------------ 
-async def is_member(bot, user_id: int, channel: str = CHANNEL_USERNAME) -> bool:
+# ------------------ CHANNEL CHECK ------------------
+async def is_member(bot, user_id: int, channel_id: int) -> bool:
+    """
+    Foydalanuvchini yopiq kanalga qabul qilinganligini aniqlaydi.
+    """
     try:
-        member = await bot.get_chat_member(channel, user_id)
-        return member.status in ['creator', 'administrator', 'member']
+        member = await bot.get_chat_member(channel_id, user_id)
+
+        # ❗ Agar admin hali qabul qilmagan bo‘lsa -> status = 'left'
+        if member.status == "left":
+            return False
+
+        return True
     except Exception as e:
         print(f"❌ get_chat_member error: {e}")
         return False
@@ -47,13 +55,22 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
     if user['pending_withdraw']:
         return await message.answer("⏳ Sizda avvalgi pul yechish so‘rovi tekshirilmoqda.")
 
-    if not await is_member(bot, message.from_user.id, CHANNEL_USERNAME):
+        # 🔐 Faqat yopiq kanalga a'zolik tekshiruvi
+    if not await is_member(bot, message.from_user.id, CHANNEL_ID_2):
         markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Kanalga obuna bo‘lish", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
-            [InlineKeyboardButton(text="✅ A’zo bo‘ldim", callback_data="check_withdraw_subs")]
+            [
+                InlineKeyboardButton(
+                    text="Kanalga obuna bo‘lish",
+                    url="https://t.me/+b1rdNPSK6ExhOGZi"
+                )
+            ],
+            [InlineKeyboardButton(text="♻️ Obunani tekshirish", callback_data="check_private_sub")]
         ])
-        return await message.answer("⚠️ Pul yechish uchun avval kanalga a’zo bo‘ling:", reply_markup=markup)
-
+        return await message.answer(
+            "⚠️ Pul yechish uchun kanalga a’zo bo‘ling:",
+            reply_markup=markup
+        )
+    
     if user['balance'] < MIN_WITHDRAW:
         return await message.answer(f"❗ Pul yechish uchun kamida <b>{MIN_WITHDRAW:,} so‘m</b> kerak.")
 
@@ -61,19 +78,28 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
     await state.set_state(WithdrawState.card)
 
 
-@router.callback_query(F.data == "check_withdraw_subs")
-async def check_withdraw_subs(callback: types.CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "check_private_sub")
+async def check_private_sub(callback: types.CallbackQuery, state: FSMContext):
     bot = callback.bot
     user_id = callback.from_user.id
-    await callback.answer() # Tezda javob berish
-    
-    for _ in range(5):
-        if await is_member(bot, user_id):
-            await callback.message.edit_text("💳 Karta raqamingizni kiriting:")
+
+    await callback.answer("⏳ Tekshirilmoqda...")  # <-- MUHIM
+
+    for _ in range(2):
+        if await is_member(bot, user_id, CHANNEL_ID_2):
+            await callback.message.edit_text(
+                "💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):"
+            )
             await state.set_state(WithdrawState.card)
             return
+
         await asyncio.sleep(2)
-    await callback.answer("❌ Siz hali kanalga a’zo bo‘lmagansiz!", show_alert=True)
+
+    await callback.message.edit_text(
+        "❌ Siz hali kanalga qabul qilinmagansiz.\n"
+        "Qabul qilish navbat bo‘yicha amalga oshiriladi.\n"
+        "Iltimos, birozdan so‘ng qayta tekshirib ko‘ring."
+    )
 
 
 @router.message(WithdrawState.card)

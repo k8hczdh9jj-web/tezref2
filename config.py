@@ -10,6 +10,7 @@ ADMIN_USERNAME = "tezref_admin1"
 # Obuna bo‘lish kerak bo‘lgan Telegram kanal usernames
 CHANNEL_USERNAME = "@tezrefofficial"
 CHANNEL_USERNAME_2 = '@tezrefpromo'
+CHANNEL_ID_2 = -1003276045866
 
 # ------------------ DATABASE ------------------
 # PostgreSQL URL environmentdan olinadi
