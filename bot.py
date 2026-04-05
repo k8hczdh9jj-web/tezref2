@@ -2,8 +2,10 @@ from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 import asyncio
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-from config import API_TOKEN
+from config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_SECRET, WEBHOOK_URL, WEBAPP_HOST, WEBAPP_PORT
 from database import get_db_pool, init_db 
 
 from handlers import (
@@ -43,10 +45,37 @@ dp.include_router(admin_ads_router)
 dp.include_router(fallback_router)      # fallback oxiriga
 
 async def main():
-    print("🤖 TezRef bot ishga tushdi...")
-    pool = await get_db_pool()
-    await init_db(pool)
-    await dp.start_polling(bot)
+    app = web.Application()
+
+    webhook_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+        secret_token=WEBHOOK_SECRET,
+    )
+    webhook_handler.register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+
+    async def on_startup(_app: web.Application):
+        print("🤖 TezRef bot webhook rejimida ishga tushmoqda...")
+        pool = await get_db_pool()
+        await init_db(pool)
+        await bot.set_webhook(WEBHOOK_URL, secret_token=WEBHOOK_SECRET)
+        print(f"✅ Webhook o'rnatildi: {WEBHOOK_URL}")
+
+    async def on_shutdown(_app: web.Application):
+        await bot.delete_webhook(drop_pending_updates=False)
+        await bot.session.close()
+
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host=WEBAPP_HOST, port=WEBAPP_PORT)
+    await site.start()
+    print(f"🌐 Web server ishga tushdi: {WEBAPP_HOST}:{WEBAPP_PORT}")
+
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
