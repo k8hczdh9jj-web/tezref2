@@ -15,9 +15,7 @@ from handlers import (
     referral_router,
     stats_router,
     withdraw_router,
-    contact_admin_router,
     rating_router,   # user/fake reyting
-    team_router,      # team reyting
     admin_broadcast_router,
     admin_ads_router,
 )
@@ -43,8 +41,6 @@ dp.include_router(referral_router)
 dp.include_router(stats_router)
 dp.include_router(withdraw_router)
 dp.include_router(rating_router)        # user/fake reyting (bosh menyu)
-dp.include_router(team_router)          # team reyting (team menyusi)
-dp.include_router(contact_admin_router)
 dp.include_router(admin_broadcast_router) 
 dp.include_router(admin_ads_router)
 dp.include_router(fallback_router)      # fallback oxiriga
