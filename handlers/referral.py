@@ -27,7 +27,11 @@ async def referral_link(message: types.Message):
         f"{link}\n\n"
         "🎁 Siz shu havola orqali kirsangiz, menga bonus tushadi."
     )
-    share_url = f"https://t.me/share/url?text={quote(share_text)}"
+    share_url = (
+        "https://t.me/share/url"
+        f"?url={quote(link, safe='')}"
+        f"&text={quote(share_text, safe='')}"
+    )
 
     markup = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -61,7 +65,11 @@ async def check_subscription(callback: types.CallbackQuery):
             f"{link}\n\n"
             "🎁 Siz shu havola orqali kirsangiz, menga bonus tushadi."
         )
-        share_url = f"https://t.me/share/url?text={quote(share_text)}"
+        share_url = (
+            "https://t.me/share/url"
+            f"?url={quote(link, safe='')}"
+            f"&text={quote(share_text, safe='')}"
+        )
 
         markup = InlineKeyboardMarkup(
             inline_keyboard=[
