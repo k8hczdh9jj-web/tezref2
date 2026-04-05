@@ -25,6 +25,8 @@ fallback_router = Router()
 
 @fallback_router.message()
 async def unknown_command(message: types.Message):
+    if message.chat.type != "private":
+        return
     await message.answer("Noto‘g‘ri buyruq yoki tugma. Menyudan foydalaning yoki qaytadan /start bosing.")
 
 bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)

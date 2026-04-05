@@ -36,6 +36,20 @@ async def init_db(pool):
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS phone_number TEXT
         """)
+        await conn.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS group_added_count INTEGER DEFAULT 0
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS group_invite_credits (
+                invited_user_id BIGINT PRIMARY KEY,
+                first_inviter_user_id BIGINT NOT NULL,
+                group_id BIGINT NOT NULL,
+                bonus_amount BIGINT NOT NULL,
+                created_at TIMESTAMP DEFAULT now()
+            )
+        """)
 
         # Team bo'limi olib tashlangani uchun eski team obyektlarini o'chiramiz
         await conn.execute("""

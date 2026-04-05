@@ -5,6 +5,8 @@ from aiogram.filters import Command
 from utils.channel_check import is_member_channel_1
 from urllib.parse import quote
 from config import ADMIN_ID, WORK_GROUP_NAME, WORK_GROUP_LINK, WORK_GROUP_ID
+from database import get_db_pool
+from utils.levels import get_level_by_refs
 
 router = Router()
 
@@ -79,16 +81,38 @@ async def referral_link(message: types.Message):
 
 @router.message(F.text == "👥 Guruhga do'st qo'shish orqali")
 async def group_invite_bonus_info(message: types.Message):
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow(
+            "SELECT group_added_count FROM users WHERE user_id = $1",
+            message.from_user.id,
+        )
+
+    added_count = user["group_added_count"] if user and user["group_added_count"] is not None else 0
+    _, next_bonus = get_level_by_refs(added_count + 1)
+
     group_id_text = f"<code>{WORK_GROUP_ID}</code>" if WORK_GROUP_ID else "hali o'rnatilmagan"
     group_link_text = WORK_GROUP_LINK if WORK_GROUP_LINK else "(link hali berilmagan)"
+
+    buttons = []
+    if WORK_GROUP_LINK:
+        buttons.append([InlineKeyboardButton(text="👥 Guruhga o'tish", url=WORK_GROUP_LINK)])
+
+    markup = InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
 
     await message.answer(
         "👥 <b>Guruh orqali bonus</b>\n\n"
         f"Guruh: <b>{WORK_GROUP_NAME}</b>\n"
         f"Guruh ID: {group_id_text}\n"
         f"Guruh havolasi: {group_link_text}\n\n"
-        "Yaqin bosqichda bonuslarni shu bo'limga ulaymiz.",
+        f"✅ Siz guruhga qo'shganlar soni: <b>{added_count}</b>\n"
+        f"💰 Keyingi qo'shgan odam uchun taxminiy bonus: <b>{next_bonus} so'm</b>\n\n"
+        "Qoidalar:\n"
+        "• Faqat siz qo'shgan odamlar hisoblanadi\n"
+        "• O'zi link bilan kirganlar hisoblanmaydi\n"
+        "• Bir odam faqat bir marta hisoblanadi",
         parse_mode=ParseMode.HTML,
+        reply_markup=markup,
     )
 
 
@@ -105,6 +129,100 @@ async def group_id_helper(message: types.Message):
         f"✅ Guruh ID: <code>{message.chat.id}</code>",
         parse_mode=ParseMode.HTML,
     )
+
+
+@router.message(F.new_chat_members)
+async def track_group_added_members(message: types.Message):
+    if message.chat.type not in {"group", "supergroup"}:
+        return
+
+    if not WORK_GROUP_ID or message.chat.id != WORK_GROUP_ID:
+        return
+
+    if not message.from_user or not message.new_chat_members:
+        return
+
+    inviter_id = message.from_user.id
+    inviter_username = message.from_user.username or f"user{inviter_id}"
+
+    credited_count = 0
+    total_bonus = 0
+
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO users (user_id, username, ref_code)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO NOTHING
+            """,
+            inviter_id,
+            inviter_username,
+            str(inviter_id),
+        )
+
+        for new_member in message.new_chat_members:
+            invited_user_id = new_member.id
+
+            if new_member.is_bot:
+                continue
+
+            # User o'zi join qilsa yoki o'zini qo'shsa bonus berilmaydi
+            if invited_user_id == inviter_id:
+                continue
+
+            current_added = await conn.fetchval(
+                "SELECT COALESCE(group_added_count, 0) FROM users WHERE user_id = $1",
+                inviter_id,
+            )
+            _, per_user_bonus = get_level_by_refs(current_added + 1)
+
+            inserted = await conn.fetchval(
+                """
+                INSERT INTO group_invite_credits (
+                    invited_user_id,
+                    first_inviter_user_id,
+                    group_id,
+                    bonus_amount
+                )
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (invited_user_id) DO NOTHING
+                RETURNING invited_user_id
+                """,
+                invited_user_id,
+                inviter_id,
+                message.chat.id,
+                per_user_bonus,
+            )
+
+            if not inserted:
+                continue
+
+            await conn.execute(
+                """
+                UPDATE users
+                SET group_added_count = COALESCE(group_added_count, 0) + 1,
+                    balance = balance + $1
+                WHERE user_id = $2
+                """,
+                per_user_bonus,
+                inviter_id,
+            )
+
+            credited_count += 1
+            total_bonus += per_user_bonus
+
+    if credited_count > 0:
+        try:
+            await message.bot.send_message(
+                inviter_id,
+                f"🎉 Guruhga qo'shganingiz uchun bonus!\n"
+                f"👥 Hisoblangan odamlar: <b>{credited_count}</b>\n"
+                f"💰 Jami bonus: <b>{total_bonus} so'm</b>",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            pass
 
 
 @router.callback_query(F.data == "check_subs_referral")
