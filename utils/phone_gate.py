@@ -40,6 +40,14 @@ class PhoneGateMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         if isinstance(event, types.Message):
+            if event.chat and event.chat.type in {"group", "supergroup"}:
+                return await handler(event, data)
+
+        if isinstance(event, types.CallbackQuery):
+            if event.message and event.message.chat and event.message.chat.type in {"group", "supergroup"}:
+                return await handler(event, data)
+
+        if isinstance(event, types.Message):
             if event.contact:
                 return await handler(event, data)
 

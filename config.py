@@ -36,6 +36,10 @@ CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@tezrefofficial")
 CHANNEL_USERNAME_2 = os.getenv("CHANNEL_USERNAME_2", "@tezrefpromo")
 CHANNEL_ID_2 = int(os.getenv("CHANNEL_ID_2", "-1003276045866"))
 
+WORK_GROUP_NAME = os.getenv("WORK_GROUP_NAME", "TezRef Official 2.0")
+WORK_GROUP_LINK = os.getenv("WORK_GROUP_LINK", "")
+WORK_GROUP_ID = int(os.getenv("WORK_GROUP_ID", "0"))
+
 # ------------------ DATABASE ------------------
 # PostgreSQL URL environmentdan olinadi
 DATABASE_URL = os.getenv("DATABASE_URL")

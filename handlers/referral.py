@@ -1,12 +1,38 @@
 from aiogram import Router, types, F
 from aiogram.enums import ParseMode
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.filters import Command
 from utils.channel_check import is_member_channel_1
 from urllib.parse import quote
+from config import ADMIN_ID, WORK_GROUP_NAME, WORK_GROUP_LINK, WORK_GROUP_ID
 
 router = Router()
 
+
+def earning_menu() -> ReplyKeyboardMarkup:
+    buttons = [
+        [KeyboardButton(text="🔗 Referal havola orqali")],
+        [KeyboardButton(text="👥 Guruhga do'st qo'shish orqali")],
+        [KeyboardButton(text="⬅️ Ortga")],
+    ]
+    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+
 @router.message(F.text == "💸 Pul ishlash")
+async def open_earning_menu(message: types.Message):
+    await message.answer(
+        "💸 Pul ishlash bo'limi. Kerakli yo'nalishni tanlang:",
+        reply_markup=earning_menu(),
+    )
+
+
+@router.message(F.text == "⬅️ Ortga")
+async def back_to_main_menu(message: types.Message):
+    from .start import main_menu
+
+    await message.answer("Asosiy menyuga qaytdingiz.", reply_markup=main_menu())
+
+
+@router.message(F.text == "🔗 Referal havola orqali")
 async def referral_link(message: types.Message):
     user_id = message.from_user.id
 
@@ -48,6 +74,36 @@ async def referral_link(message: types.Message):
         "Qancha ko'p do'st taklif qilsangiz, hisobingiz shuncha tez o'sadi.",
         parse_mode=ParseMode.HTML,
         reply_markup=markup,
+    )
+
+
+@router.message(F.text == "👥 Guruhga do'st qo'shish orqali")
+async def group_invite_bonus_info(message: types.Message):
+    group_id_text = f"<code>{WORK_GROUP_ID}</code>" if WORK_GROUP_ID else "hali o'rnatilmagan"
+    group_link_text = WORK_GROUP_LINK if WORK_GROUP_LINK else "(link hali berilmagan)"
+
+    await message.answer(
+        "👥 <b>Guruh orqali bonus</b>\n\n"
+        f"Guruh: <b>{WORK_GROUP_NAME}</b>\n"
+        f"Guruh ID: {group_id_text}\n"
+        f"Guruh havolasi: {group_link_text}\n\n"
+        "Yaqin bosqichda bonuslarni shu bo'limga ulaymiz.",
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@router.message(Command("groupid"))
+async def group_id_helper(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    if message.chat.type not in {"group", "supergroup"}:
+        await message.answer("Bu komandani guruh ichida yuboring: /groupid")
+        return
+
+    await message.answer(
+        f"✅ Guruh ID: <code>{message.chat.id}</code>",
+        parse_mode=ParseMode.HTML,
     )
 
 
