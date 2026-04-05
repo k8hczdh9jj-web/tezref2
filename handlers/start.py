@@ -7,6 +7,7 @@ from database import get_db_pool # init_db ni import qilish shart emas
 from utils.levels import get_level_by_refs
 from config import CHANNEL_USERNAME # Ishlatilgan bo'lsa qolsin
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton # main_menu uchun
+from utils.phone_gate import phone_request_keyboard
 
 router = Router()
 
@@ -64,12 +65,23 @@ async def start_cmd(message: types.Message):
     if start_param and start_param.isdigit():
         invited_by = int(start_param)
 
+    user_phone = None
+
     async with pool.acquire() as conn:
-        user_in_db = await conn.fetchrow("SELECT user_id FROM users WHERE user_id=$1", user_id)
+        user_in_db = await conn.fetchrow("SELECT user_id, phone_number FROM users WHERE user_id=$1", user_id)
         
         # Ro'yxatdan o'tish mantiqi: Agar user bazada bo'lmasa, uni yaratamiz
         if not user_in_db:
             await register_user(conn, user_id, username, invited_by)
+        else:
+            user_phone = user_in_db["phone_number"]
+
+    if not user_phone:
+        await message.answer(
+            "📱 Botdan foydalanishni boshlash uchun telefon raqamingizni ulashing.",
+            reply_markup=phone_request_keyboard(),
+        )
+        return
             
     # 2. 🛡️ Jamoa taklifini tekshirish (start=team_ID)
     if start_param and start_param.startswith("team_"):
@@ -101,4 +113,53 @@ async def start_cmd(message: types.Message):
         "Pul ishlashni boshlash uchun menyudan foydalaning.",
         reply_markup=main_menu(),
         parse_mode=ParseMode.HTML
+    )
+
+
+@router.message(F.contact)
+async def save_phone_contact(message: types.Message):
+    user_id = message.from_user.id
+    username = message.from_user.username or f"user{user_id}"
+
+    if not message.contact:
+        await message.answer(
+            "❌ Telefon raqamini to'g'ri yuboring.",
+            reply_markup=phone_request_keyboard(),
+        )
+        return
+
+    if message.contact.user_id and message.contact.user_id != user_id:
+        await message.answer(
+            "❌ Faqat o'zingizga tegishli telefon raqamni yuboring.",
+            reply_markup=phone_request_keyboard(),
+        )
+        return
+
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO users (user_id, username, ref_code)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO NOTHING
+            """,
+            user_id,
+            username,
+            str(user_id),
+        )
+
+        await conn.execute(
+            """
+            UPDATE users
+            SET phone_number = $1, username = $2
+            WHERE user_id = $3
+            """,
+            message.contact.phone_number,
+            username,
+            user_id,
+        )
+
+    await message.answer(
+        "✅ Telefon raqamingiz saqlandi. Endi barcha funksiyalardan foydalanishingiz mumkin.",
+        reply_markup=main_menu(),
     )

@@ -7,6 +7,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 
 from config import API_TOKEN, WEBHOOK_PATH, WEBHOOK_SECRET, WEBHOOK_URL, WEBAPP_HOST, WEBAPP_PORT
 from database import get_db_pool, init_db 
+from utils.phone_gate import PhoneGateMiddleware
 
 from handlers import (
     start_router,
@@ -31,6 +32,10 @@ async def unknown_command(message: types.Message):
 bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
+
+phone_gate = PhoneGateMiddleware()
+dp.message.middleware(phone_gate)
+dp.callback_query.middleware(phone_gate)
 
 dp.include_router(start_router)
 dp.include_router(promo_router)

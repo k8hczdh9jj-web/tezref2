@@ -33,6 +33,7 @@ async def init_db(pool):
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
                 username TEXT,
+                phone_number TEXT,
                 balance BIGINT DEFAULT 0,
                 referrals INTEGER DEFAULT 0,
                 weekly_refs INTEGER DEFAULT 0,
@@ -46,6 +47,12 @@ async def init_db(pool):
                 -- YANGI: Jamoaga qo'shilgan umumiy tanga miqdori
                 total_team_contribution BIGINT DEFAULT 0
             )
+        """)
+
+        # Eski bazalarda phone_number bo'lmasa, qo'shib qo'yamiz
+        await conn.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS phone_number TEXT
         """)
 
         # Promo tables (O'zgarishsiz)
