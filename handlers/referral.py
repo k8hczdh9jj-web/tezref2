@@ -22,10 +22,12 @@ async def referral_link(message: types.Message):
     link = f"https://t.me/{me.username}?start={user_id}"
 
     share_text = (
-        "Salom! Men TezRef botda pul ishlayapman. "
-        "Quyidagi tugma orqali kirsang, ro'yxatdan o'tganingdan keyin menga bonus tushadi 👇"
+        "Salom! Men TezRef botda pul ishlayapman.\n\n"
+        "✅ Botga kirish uchun quyidagi havolani bosing:\n"
+        f"{link}\n\n"
+        "🎁 Siz shu havola orqali kirsangiz, menga bonus tushadi."
     )
-    share_url = f"https://t.me/share/url?url={quote(link)}&text={quote(share_text)}"
+    share_url = f"https://t.me/share/url?text={quote(share_text)}"
 
     markup = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -35,7 +37,7 @@ async def referral_link(message: types.Message):
 
     await message.answer(
         "💸 <b>Pul ishlash havolangiz tayyor!</b>\n\n"
-        f"🔗 <a href='{link}'>Do'st taklif havolasini ochish</a>\n\n"
+        f"🔗 <a href='{link}'>Taklif havolasini ochish</a>\n\n"
         "1) Pastdagi <b>Do'stga yuborish</b> tugmasini bosing.\n"
         "2) Xabarni do'stingizga jo'nating.\n"
         "3) Do'stingiz shu havola orqali botga kirsa, sizga bonus tushadi.\n\n"
@@ -54,10 +56,12 @@ async def check_subscription(callback: types.CallbackQuery):
         link = f"https://t.me/{me.username}?start={user_id}"
 
         share_text = (
-            "Salom! Men TezRef botda pul ishlayapman. "
-            "Quyidagi tugma orqali kirsang, ro'yxatdan o'tganingdan keyin menga bonus tushadi 👇"
+            "Salom! Men TezRef botda pul ishlayapman.\n\n"
+            "✅ Botga kirish uchun quyidagi havolani bosing:\n"
+            f"{link}\n\n"
+            "🎁 Siz shu havola orqali kirsangiz, menga bonus tushadi."
         )
-        share_url = f"https://t.me/share/url?url={quote(link)}&text={quote(share_text)}"
+        share_url = f"https://t.me/share/url?text={quote(share_text)}"
 
         markup = InlineKeyboardMarkup(
             inline_keyboard=[
@@ -67,7 +71,7 @@ async def check_subscription(callback: types.CallbackQuery):
 
         await callback.message.edit_text(
             f"✅ A’zo bo‘lganingiz uchun rahmat!\n\n"
-            f"🔗 <a href='{link}'>Do'st taklif havolasini ochish</a>\n\n"
+            f"🔗 <a href='{link}'>Taklif havolasini ochish</a>\n\n"
             "Do'stingiz shu havola orqali botga kirsa, sizga bonus tushadi.",
             parse_mode=ParseMode.HTML,
             reply_markup=markup,
