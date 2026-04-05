@@ -14,6 +14,20 @@ async def get_db_pool():
 
 async def init_db(pool):
     async with pool.acquire() as conn:
+        # Teams avval yaratiladi, chunki users.team_id -> teams(team_id) FK bor
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS teams (
+                team_id SERIAL PRIMARY KEY,
+                team_name TEXT UNIQUE NOT NULL,
+                creator_id BIGINT UNIQUE NOT NULL,
+                creator_username TEXT,
+                invite_link TEXT UNIQUE,
+                members_count INT DEFAULT 1,
+                team_coins INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT now()
+            )
+        """)
+
         # Users table (YANGILANGAN: total_team_contribution ustuni qo'shildi)
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -54,20 +68,6 @@ async def init_db(pool):
                 user_id BIGINT,
                 claimed_at TIMESTAMP DEFAULT now(),
                 PRIMARY KEY (code, user_id)
-            )
-        """)
-
-        # Teams table (O'zgarishsiz)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS teams (
-                team_id SERIAL PRIMARY KEY,
-                team_name TEXT UNIQUE NOT NULL,
-                creator_id BIGINT UNIQUE NOT NULL,
-                creator_username TEXT,
-                invite_link TEXT UNIQUE,
-                members_count INT DEFAULT 1,
-                team_coins INT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT now()
             )
         """)
 
