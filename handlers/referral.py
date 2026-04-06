@@ -261,24 +261,34 @@ async def track_group_added_members(message: types.Message):
             except Exception:
                 pass
     elif (skipped_self_join_count + skipped_already_counted) > 0:
-        try:
-            reason_lines = ["ℹ️ Bu qo'shilishda bonus berilmadi."]
-            if skipped_self_join_count > 0:
-                reason_lines.append(
-                    f"• Link orqali o'zi kirganlar: <b>{skipped_self_join_count}</b> (hisoblanmaydi)"
-                )
-            if skipped_already_counted > 0:
-                reason_lines.append(
-                    f"• Avval hisoblangan userlar: <b>{skipped_already_counted}</b>"
-                )
+        reason_lines = ["ℹ️ Bu qo'shilishda bonus berilmadi."]
+        if skipped_self_join_count > 0:
+            reason_lines.append(
+                f"• Link orqali o'zi kirganlar: <b>{skipped_self_join_count}</b> (hisoblanmaydi)"
+            )
+        if skipped_already_counted > 0:
+            reason_lines.append(
+                f"• Avval hisoblangan userlar: <b>{skipped_already_counted}</b>"
+            )
 
+        reason_text = "\n".join(reason_lines)
+
+        try:
             await message.bot.send_message(
                 inviter_id,
-                "\n".join(reason_lines),
+                reason_text,
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
-            pass
+            try:
+                fallback_msg = await message.reply(
+                    "ℹ️ Shaxsiy xabar yuborilmadi, sabab shu yerda:\n\n" + reason_text,
+                    parse_mode=ParseMode.HTML,
+                )
+                await asyncio.sleep(12)
+                await fallback_msg.delete()
+            except Exception:
+                pass
 
     # Guruhdagi service xabarni avtomatik o'chiramiz (hisoblash tugagandan keyin).
     try:
