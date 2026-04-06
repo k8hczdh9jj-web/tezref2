@@ -99,6 +99,56 @@ def get_combined_level(refs: int, group_adds: int) -> str:
     return LEVEL_NAMES[max(ref_idx, group_idx)]
 
 
+def _metric_progress(value: int, upper_bounds: list, idx: int) -> float:
+    lower = 0 if idx == 0 else upper_bounds[idx - 1]
+    upper = upper_bounds[idx]
+
+    if upper == float("inf"):
+        return 1.0
+
+    span = upper - lower
+    if span <= 0:
+        return 1.0
+
+    progress = (value - lower) / span
+    return max(0.0, min(1.0, progress))
+
+
+def get_level_progress(refs: int, group_adds: int) -> dict:
+    ref_idx = _level_index_by_value(refs, REFERRAL_UPPER_BOUNDS)
+    group_idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS)
+    current_idx = max(ref_idx, group_idx)
+
+    progress = max(
+        _metric_progress(refs, REFERRAL_UPPER_BOUNDS, current_idx),
+        _metric_progress(group_adds, GROUP_UPPER_BOUNDS, current_idx),
+    )
+
+    max_idx = len(LEVEL_NAMES) - 1
+    if current_idx >= max_idx:
+        return {
+            "current_level": LEVEL_NAMES[current_idx],
+            "next_level": None,
+            "needed_refs": 0,
+            "needed_group_adds": 0,
+            "progress": 1.0,
+        }
+
+    next_ref_at = REFERRAL_UPPER_BOUNDS[current_idx]
+    next_group_at = GROUP_UPPER_BOUNDS[current_idx]
+
+    needed_refs = 0 if next_ref_at == float("inf") else max(0, int(next_ref_at - refs))
+    needed_group_adds = 0 if next_group_at == float("inf") else max(0, int(next_group_at - group_adds))
+
+    return {
+        "current_level": LEVEL_NAMES[current_idx],
+        "next_level": LEVEL_NAMES[current_idx + 1],
+        "needed_refs": needed_refs,
+        "needed_group_adds": needed_group_adds,
+        "progress": progress,
+    }
+
+
 def get_total_earned_until_refs(refs: int):
     total = 0
     prev = 0
