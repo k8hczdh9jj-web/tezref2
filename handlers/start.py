@@ -1,9 +1,10 @@
 # handlers/start.py
 import re
 from html import escape
-from aiogram import Router, types, F
+from aiogram import Router, types, F, Bot
 from aiogram.filters import CommandStart
 from aiogram.enums import ParseMode
+from config import ALERT_CHANNEL_ID
 from database import get_db_pool # init_db ni import qilish shart emas
 from utils.levels import get_level_by_refs, get_combined_level
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton # main_menu uchun
@@ -20,6 +21,45 @@ def main_menu():
         [KeyboardButton(text="🏆 Reyting")],
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+
+
+async def send_registration_alert(
+    bot: Bot,
+    user_row,
+    first_name: str | None,
+    last_name: str | None,
+):
+    if not ALERT_CHANNEL_ID:
+        return
+
+    username = user_row["username"]
+    username_text = f"@{escape(username)}" if username else "yo'q"
+    full_name = (f"{first_name or ''} {last_name or ''}").strip()
+    full_name_text = escape(full_name) if full_name else "yo'q"
+    invited_by = user_row["invited_by"]
+    invited_by_text = f"<code>{invited_by}</code>" if invited_by else "yo'q"
+    created_at = user_row["created_at"]
+    created_at_text = created_at.strftime("%d.%m.%Y %H:%M:%S") if created_at else "yo'q"
+    phone_text = escape(user_row["phone_number"] or "yo'q")
+
+    alert_text = (
+        "🆕 <b>Yangi ro'yxatdan o'tgan foydalanuvchi</b>\n\n"
+        f"🆔 ID: <code>{user_row['user_id']}</code>\n"
+        f"👤 Ism-familya: <b>{full_name_text}</b>\n"
+        f"🔖 Username: <b>{username_text}</b>\n"
+        f"📱 Telefon: <code>{phone_text}</code>\n"
+        f"👥 Taklif qilgan (invited_by): {invited_by_text}\n"
+        f"🔗 Ref kodi: <code>{escape(user_row['ref_code'] or '')}</code>\n"
+        f"🏅 Daraja: <b>{escape(user_row['level'] or 'Oddiy')}</b>\n"
+        f"👥 Referallar: <b>{int(user_row['referrals'] or 0)}</b>\n"
+        f"💰 Balans: <b>{int(user_row['balance'] or 0)} so'm</b>\n"
+        f"🕒 Ro'yxatdan o'tgan vaqt: <b>{created_at_text}</b>"
+    )
+
+    try:
+        await bot.send_message(ALERT_CHANNEL_ID, alert_text, parse_mode=ParseMode.HTML)
+    except Exception:
+        pass
 
 async def register_user(conn, user_id, username, invited_by=None):
     """Foydalanuvchini bazaga kiritadi va referal bonus ma'lumotini qaytaradi."""
@@ -151,7 +191,15 @@ async def save_phone_contact(message: types.Message):
         return
 
     pool = await get_db_pool()
+    existing_phone = None
+    updated_user = None
+
     async with pool.acquire() as conn:
+        existing_phone = await conn.fetchval(
+            "SELECT phone_number FROM users WHERE user_id = $1",
+            user_id,
+        )
+
         await conn.execute(
             """
             INSERT INTO users (user_id, username, ref_code)
@@ -172,6 +220,32 @@ async def save_phone_contact(message: types.Message):
             message.contact.phone_number,
             username,
             user_id,
+        )
+
+        updated_user = await conn.fetchrow(
+            """
+            SELECT
+                user_id,
+                username,
+                phone_number,
+                invited_by,
+                ref_code,
+                level,
+                referrals,
+                balance,
+                created_at
+            FROM users
+            WHERE user_id = $1
+            """,
+            user_id,
+        )
+
+    if (not existing_phone) and updated_user:
+        await send_registration_alert(
+            message.bot,
+            updated_user,
+            message.from_user.first_name,
+            message.from_user.last_name,
         )
 
     await message.answer(

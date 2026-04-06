@@ -39,6 +39,10 @@ WORK_GROUP_NAME = os.getenv("WORK_GROUP_NAME", "TezRef Official 2.0")
 WORK_GROUP_LINK = os.getenv("WORK_GROUP_LINK", "")
 WORK_GROUP_ID = int(os.getenv("WORK_GROUP_ID", "0"))
 
+# Alert kanali: yangi ro'yxatdan o'tgan user ma'lumotlarini yuborish uchun.
+ALERT_CHANNEL_LINK = os.getenv("ALERT_CHANNEL_LINK", "")
+ALERT_CHANNEL_ID = int(os.getenv("ALERT_CHANNEL_ID", "0"))
+
 # ------------------ DATABASE ------------------
 # PostgreSQL URL environmentdan olinadi
 DATABASE_URL = os.getenv("DATABASE_URL")
