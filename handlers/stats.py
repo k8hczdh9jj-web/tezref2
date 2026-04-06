@@ -11,7 +11,7 @@ async def stats_cmd(message: types.Message):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow("""
-            SELECT balance, referrals, level, blocked
+            SELECT balance, referrals, COALESCE(group_added_count, 0) AS group_added_count, level, blocked
             FROM users
             WHERE user_id = $1
         """, message.from_user.id)
@@ -24,6 +24,7 @@ async def stats_cmd(message: types.Message):
         await message.answer(
             f"📊 <b>Sizning statistikangiz:</b>\n\n"
             f"👥 Do'stlar soni: <b>{user['referrals']}</b>\n"
+            f"👤 Guruhga qo'shganlar: <b>{user['group_added_count']}</b>\n"
             f"💰 Xisobingiz: <b>{user['balance']} so‘m</b>\n"
             f"🏅 Daraja: <b>{user['level']}</b>\n"
             f"⚙️ Status: {status}",
