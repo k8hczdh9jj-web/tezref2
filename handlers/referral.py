@@ -144,6 +144,9 @@ async def track_group_added_members(message: types.Message):
 
     credited_count = 0
     total_bonus = 0
+    skipped_bot_count = 0
+    skipped_self_join_count = 0
+    skipped_already_counted = 0
 
     pool = await get_db_pool()
     async with pool.acquire() as conn:
@@ -162,10 +165,12 @@ async def track_group_added_members(message: types.Message):
             invited_user_id = new_member.id
 
             if new_member.is_bot:
+                skipped_bot_count += 1
                 continue
 
             # User o'zi join qilsa yoki o'zini qo'shsa bonus berilmaydi
             if invited_user_id == inviter_id:
+                skipped_self_join_count += 1
                 continue
 
             current_added = await conn.fetchval(
@@ -201,6 +206,7 @@ async def track_group_added_members(message: types.Message):
             )
 
             if not inserted:
+                skipped_already_counted += 1
                 continue
 
             await conn.execute(
@@ -221,11 +227,41 @@ async def track_group_added_members(message: types.Message):
 
     if credited_count > 0:
         try:
+            extra_lines = []
+            if skipped_already_counted > 0:
+                extra_lines.append(f"⚠️ Avval hisoblanganlar: <b>{skipped_already_counted}</b>")
+            if skipped_self_join_count > 0:
+                extra_lines.append(
+                    f"ℹ️ Link orqali o'zi kirganlar (hisoblanmaydi): <b>{skipped_self_join_count}</b>"
+                )
+
+            extra_text = "\n" + "\n".join(extra_lines) if extra_lines else ""
+
             await message.bot.send_message(
                 inviter_id,
                 f"🎉 Guruhga qo'shganingiz uchun bonus!\n"
                 f"👥 Hisoblangan odamlar: <b>{credited_count}</b>\n"
-                f"💰 Jami bonus: <b>{total_bonus} so'm</b>",
+                f"💰 Jami bonus: <b>{total_bonus} so'm</b>"
+                f"{extra_text}",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            pass
+    elif (skipped_self_join_count + skipped_already_counted) > 0:
+        try:
+            reason_lines = ["ℹ️ Bu qo'shilishda bonus berilmadi."]
+            if skipped_self_join_count > 0:
+                reason_lines.append(
+                    f"• Link orqali o'zi kirganlar: <b>{skipped_self_join_count}</b> (hisoblanmaydi)"
+                )
+            if skipped_already_counted > 0:
+                reason_lines.append(
+                    f"• Avval hisoblangan userlar: <b>{skipped_already_counted}</b>"
+                )
+
+            await message.bot.send_message(
+                inviter_id,
+                "\n".join(reason_lines),
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
