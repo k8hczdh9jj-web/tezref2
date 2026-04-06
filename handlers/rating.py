@@ -25,11 +25,10 @@ def _display_name(user_id: int, username: str | None) -> str:
     return f"ID:{user_id}"
 
 
-async def _show_not_ready_text(message: types.Message, title: str, total_users: int):
+async def _show_not_ready_text(message: types.Message, title: str):
     await message.answer(
         f"🏆 <b>{title}</b>\n\n"
-        "Reyting (TOP 10) tez orada hisoblanadi va ma'lum qilinadi.\n"
-        f"Hozircha foydalanuvchilar soni: <b>{total_users}</b>",
+        "Reyting (TOP 10) tez orada hisoblanadi va ma'lum qilinadi.",
         parse_mode=ParseMode.HTML,
     )
 
@@ -48,7 +47,7 @@ async def show_referral_ranking(message: types.Message):
     async with pool.acquire() as conn:
         total_users = await _users_count(conn)
         if total_users <= 100:
-            await _show_not_ready_text(message, "Do'stlar taklif qilish bo'yicha reyting", total_users)
+            await _show_not_ready_text(message, "Do'stlar taklif qilish bo'yicha reyting")
             return
 
         top_users = await conn.fetch("""
@@ -95,7 +94,7 @@ async def show_group_ranking(message: types.Message):
     async with pool.acquire() as conn:
         total_users = await _users_count(conn)
         if total_users <= 100:
-            await _show_not_ready_text(message, "Guruhga do'st qo'shish bo'yicha reyting", total_users)
+            await _show_not_ready_text(message, "Guruhga do'st qo'shish bo'yicha reyting")
             return
 
         top_users = await conn.fetch("""

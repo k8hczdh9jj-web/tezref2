@@ -4,8 +4,8 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest # Xatolarni boshqarish uchun
-import asyncio
-from config import ADMIN_ID, CHANNEL_ID_2
+from datetime import date
+from config import ADMIN_ID
 from database import get_db_pool
 
 router = Router()
@@ -17,30 +17,22 @@ class WithdrawState(StatesGroup):
 
 MIN_WITHDRAW = 60000
 MAX_WITHDRAW = 100000
+PAYOUT_DAY = 2
 
-# ------------------ CHANNEL CHECK ------------------
-async def is_member(bot, user_id: int, channel_id: int) -> bool:
-    """
-    Foydalanuvchini yopiq kanalga qabul qilinganligini aniqlaydi.
-    """
-    try:
-        member = await bot.get_chat_member(channel_id, user_id)
+def _next_payout_date(today: date) -> date:
+    if today.day < PAYOUT_DAY:
+        return today.replace(day=PAYOUT_DAY)
 
-        # ❗ Agar admin hali qabul qilmagan bo‘lsa -> status = 'left'
-        if member.status == "left":
-            return False
+    if today.month == 12:
+        return date(today.year + 1, 1, PAYOUT_DAY)
 
-        return True
-    except Exception as e:
-        print(f"❌ get_chat_member error: {e}")
-        return False
+    return date(today.year, today.month + 1, PAYOUT_DAY)
 
 
 # ------------------ Pul yechish ------------------
 @router.message(F.text == "💰 Pul yechish")
 async def withdraw_cmd(message: types.Message, state: FSMContext):
     await state.clear()
-    bot = message.bot
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
@@ -55,20 +47,23 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
     if user['pending_withdraw']:
         return await message.answer("⏳ Sizda avvalgi pul yechish so‘rovi tekshirilmoqda.")
 
-        # 🔐 Faqat yopiq kanalga a'zolik tekshiruvi
-    if not await is_member(bot, message.from_user.id, CHANNEL_ID_2):
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="Kanalga obuna bo‘lish",
-                    url="https://t.me/+b1rdNPSK6ExhOGZi"
-                )
-            ],
-            [InlineKeyboardButton(text="♻️ Obunani tekshirish", callback_data="check_private_sub")]
-        ])
+    today = date.today()
+    if today.day != PAYOUT_DAY:
+        next_payout = _next_payout_date(today)
+        days_left = (next_payout - today).days
+
+        if days_left == 1:
+            wait_text = "1 kun"
+        else:
+            wait_text = f"{days_left} kun"
+
         return await message.answer(
-            "⚠️ Pul yechish uchun kanalga a’zo bo‘ling:",
-            reply_markup=markup
+            "🎉 <b>To'lov marafoni har oyning 2-sanasi bo'ladi!</b>\n\n"
+            "💡 Hozirdan tayyorlaning: balansingizni oshirib boring.\n"
+            f"🗓 Keyingi to'lov kuni: <b>{next_payout.strftime('%d.%m.%Y')}</b>\n"
+            f"⏳ Qolgan vaqt: <b>{wait_text}</b>\n\n"
+            "🚀 2-sanada so'rov yuborsangiz, tezkor ko'rib chiqiladi.",
+            parse_mode=ParseMode.HTML,
         )
     
     if user['balance'] < MIN_WITHDRAW:
@@ -76,30 +71,6 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
 
     await message.answer("💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):")
     await state.set_state(WithdrawState.card)
-
-
-@router.callback_query(F.data == "check_private_sub")
-async def check_private_sub(callback: types.CallbackQuery, state: FSMContext):
-    bot = callback.bot
-    user_id = callback.from_user.id
-
-    await callback.answer("⏳ Tekshirilmoqda...")  # <-- MUHIM
-
-    for _ in range(2):
-        if await is_member(bot, user_id, CHANNEL_ID_2):
-            await callback.message.edit_text(
-                "💳 Karta raqamingizni kiriting (masalan: 8600 1234 5678 9999):"
-            )
-            await state.set_state(WithdrawState.card)
-            return
-
-        await asyncio.sleep(2)
-
-    await callback.message.edit_text(
-        "❌ Siz hali kanalga qabul qilinmagansiz.\n"
-        "Qabul qilish navbat bo‘yicha amalga oshiriladi.\n"
-        "Iltimos, birozdan so‘ng qayta tekshirib ko‘ring."
-    )
 
 
 @router.message(WithdrawState.card)
