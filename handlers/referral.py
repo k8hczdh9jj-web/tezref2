@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeybo
 from aiogram.filters import Command
 from utils.channel_check import is_member_required_channel
 from urllib.parse import quote
-from config import ADMIN_ID, REQUIRED_CHANNEL_LINK, WORK_GROUP_NAME, WORK_GROUP_LINK, WORK_GROUP_ID
+from config import ADMIN_ID, REQUIRED_CHANNEL_LINK, WORK_GROUP_LINK, WORK_GROUP_ID
 from database import get_db_pool
 from utils.levels import get_level_by_group_adds, get_combined_level
 
@@ -94,9 +94,6 @@ async def group_invite_bonus_info(message: types.Message):
     added_count = user["group_added_count"] if user and user["group_added_count"] is not None else 0
     _, next_bonus = get_level_by_group_adds(added_count + 1)
 
-    group_id_text = f"<code>{WORK_GROUP_ID}</code>" if WORK_GROUP_ID else "hali o'rnatilmagan"
-    group_link_text = WORK_GROUP_LINK if WORK_GROUP_LINK else "(link hali berilmagan)"
-
     buttons = []
     if WORK_GROUP_LINK:
         buttons.append([InlineKeyboardButton(text="👥 Guruhga o'tish", url=WORK_GROUP_LINK)])
@@ -105,10 +102,7 @@ async def group_invite_bonus_info(message: types.Message):
 
     await message.answer(
         "👥 <b>Guruh orqali bonus</b>\n\n"
-        f"Guruh: <b>{WORK_GROUP_NAME}</b>\n"
-        f"Guruh ID: {group_id_text}\n"
-        f"Guruh havolasi: {group_link_text}\n\n"
-        f"✅ Siz guruhga qo'shganlar soni: <b>{added_count}</b>\n"
+        f"✅ Siz guruhga qo'shgan do'stlaringiz soni: <b>{added_count}</b>\n"
         f"💰 Keyingi qo'shgan odam uchun taxminiy bonus: <b>{next_bonus} so'm</b>\n\n"
         "Qoidalar:\n"
         "• Faqat siz qo'shgan odamlar hisoblanadi\n"
