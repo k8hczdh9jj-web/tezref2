@@ -62,7 +62,7 @@ async def withdraw_cmd(message: types.Message, state: FSMContext):
             "💡 Hozirdan tayyorlaning: balansingizni oshirib boring.\n"
             f"🗓 Keyingi to'lov kuni: <b>{next_payout.strftime('%d.%m.%Y')}</b>\n"
             f"⏳ Qolgan vaqt: <b>{wait_text}</b>\n\n"
-            "🚀 2-sanada so'rov yuborsangiz, tezkor ko'rib chiqiladi.",
+            "🚀 2-sanada so'rov yuborsangiz, to'lovlar navbat asosida amalga oshiriladi.",
             parse_mode=ParseMode.HTML,
         )
     
