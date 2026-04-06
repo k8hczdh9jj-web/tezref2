@@ -20,6 +20,7 @@ async def init_db(pool):
                 user_id BIGINT PRIMARY KEY,
                 username TEXT,
                 phone_number TEXT,
+                created_at TIMESTAMP DEFAULT now(),
                 balance BIGINT DEFAULT 0,
                 referrals INTEGER DEFAULT 0,
                 weekly_refs INTEGER DEFAULT 0,
@@ -38,7 +39,21 @@ async def init_db(pool):
         """)
         await conn.execute("""
             ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT now()
+        """)
+        await conn.execute("""
+            UPDATE users
+            SET created_at = now()
+            WHERE created_at IS NULL
+        """)
+        await conn.execute("""
+            ALTER TABLE users
             ADD COLUMN IF NOT EXISTS group_added_count INTEGER DEFAULT 0
+        """)
+        await conn.execute("""
+            UPDATE users
+            SET group_added_count = 0
+            WHERE group_added_count IS NULL
         """)
 
         await conn.execute("""
@@ -48,6 +63,17 @@ async def init_db(pool):
                 group_id BIGINT NOT NULL,
                 bonus_amount BIGINT NOT NULL,
                 created_at TIMESTAMP DEFAULT now()
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_bonus_claims (
+                user_id BIGINT NOT NULL,
+                claim_date DATE NOT NULL,
+                amount BIGINT NOT NULL,
+                streak_day INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT now(),
+                PRIMARY KEY (user_id, claim_date)
             )
         """)
 

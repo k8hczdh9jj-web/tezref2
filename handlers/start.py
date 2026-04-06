@@ -14,8 +14,9 @@ router = Router()
 def main_menu():
     buttons = [
         [KeyboardButton(text="💸 Pul ishlash"), KeyboardButton(text="📊 Statistika")],
+        [KeyboardButton(text="🗓 Kunlik bonus"), KeyboardButton(text="📈 Mening darajam")],
         [KeyboardButton(text="💰 Pul yechish"), KeyboardButton(text="🎁 Promokod")],
-        [KeyboardButton(text="🏆 Reyting"), KeyboardButton(text="📈 Mening darajam")],
+        [KeyboardButton(text="🏆 Reyting")],
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 

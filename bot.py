@@ -13,6 +13,7 @@ from handlers import (
     start_router,
     promo_router,
     referral_router,
+    daily_bonus_router,
     stats_router,
     withdraw_router,
     rating_router,   # user/fake reyting
@@ -40,6 +41,7 @@ dp.callback_query.middleware(phone_gate)
 dp.include_router(start_router)
 dp.include_router(promo_router)
 dp.include_router(referral_router)
+dp.include_router(daily_bonus_router)
 dp.include_router(stats_router)
 dp.include_router(withdraw_router)
 dp.include_router(rating_router)        # user/fake reyting (bosh menyu)
