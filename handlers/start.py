@@ -1,5 +1,6 @@
 # handlers/start.py
 import re
+from html import escape
 from aiogram import Router, types, F
 from aiogram.filters import CommandStart
 from aiogram.enums import ParseMode
@@ -21,14 +22,18 @@ def main_menu():
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 async def register_user(conn, user_id, username, invited_by=None):
-    """Foydalanuvchini bazaga kiritadi va agar referal bo'lsa, bonus beradi."""
+    """Foydalanuvchini bazaga kiritadi va referal bonus ma'lumotini qaytaradi."""
     
     # Ro'yxatdan o'tkazish
-    await conn.execute("""
+    inserted_user_id = await conn.fetchval("""
         INSERT INTO users (user_id, username, ref_code, invited_by, referrals, balance, level, weekly_refs)
         VALUES ($1,$2,$3,$4,0,0,'Oddiy',0)
         ON CONFLICT (user_id) DO NOTHING
+        RETURNING user_id
     """, user_id, username, str(user_id), invited_by)
+
+    if not inserted_user_id:
+        return None
 
     # Agar referal orqali kirgan bo‘lsa bonus (faqat yangi qo'shilganlar uchun)
     if invited_by and invited_by != user_id:
@@ -53,8 +58,16 @@ async def register_user(conn, user_id, username, invited_by=None):
                 SET referrals=$1, balance=$2, level=$3
                 WHERE user_id=$4
             """, total_refs, new_balance, new_level, invited_by)
-            
-            # Yangi userning ID sini inviterga qo'shdik.
+
+            return {
+                "inviter_id": invited_by,
+                "bonus": per_ref,
+                "total_refs": total_refs,
+                "new_balance": new_balance,
+                "new_level": new_level,
+            }
+
+    return None
 
 # ------------------ /start handler ------------------
 @router.message(CommandStart())
@@ -74,15 +87,32 @@ async def start_cmd(message: types.Message):
         invited_by = int(start_param)
 
     user_phone = None
+    referral_reward = None
 
     async with pool.acquire() as conn:
         user_in_db = await conn.fetchrow("SELECT user_id, phone_number FROM users WHERE user_id=$1", user_id)
         
         # Ro'yxatdan o'tish mantiqi: Agar user bazada bo'lmasa, uni yaratamiz
         if not user_in_db:
-            await register_user(conn, user_id, username, invited_by)
+            referral_reward = await register_user(conn, user_id, username, invited_by)
         else:
             user_phone = user_in_db["phone_number"]
+
+    if referral_reward:
+        invited_name = escape(message.from_user.full_name or username)
+        try:
+            await message.bot.send_message(
+                referral_reward["inviter_id"],
+                "🎉 <b>Yangi referal qo'shildi!</b>\n\n"
+                f"👤 Yangi foydalanuvchi: <b>{invited_name}</b>\n"
+                f"💰 Bonus: <b>{referral_reward['bonus']} so'm</b>\n"
+                f"👥 Jami referallar: <b>{referral_reward['total_refs']}</b>\n"
+                f"📦 Joriy balans: <b>{referral_reward['new_balance']} so'm</b>\n"
+                f"🏅 Darajangiz: <b>{referral_reward['new_level']}</b>",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            pass
 
     if not user_phone:
         await message.answer(
