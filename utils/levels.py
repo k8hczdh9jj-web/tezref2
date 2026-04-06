@@ -67,7 +67,13 @@ def _bonus_by_level_index(index: int) -> int:
     return 1050 + ((index - 4) * 100)
 
 
-LEVEL_BONUSES = [_bonus_by_level_index(i) for i in range(len(LEVEL_NAMES))]
+def _group_bonus_by_level_index(index: int) -> int:
+    # Guruh uchun alohida shkala: 1-daraja 100, har pog'onada +25
+    return 100 + (index * 25)
+
+
+REFERRAL_LEVEL_BONUSES = [_bonus_by_level_index(i) for i in range(len(LEVEL_NAMES))]
+GROUP_LEVEL_BONUSES = [_group_bonus_by_level_index(i) for i in range(len(LEVEL_NAMES))]
 
 
 def _level_index_by_value(value: int, upper_bounds: list) -> int:
@@ -79,12 +85,12 @@ def _level_index_by_value(value: int, upper_bounds: list) -> int:
 
 def get_level_by_refs(refs: int):
     idx = _level_index_by_value(refs, REFERRAL_UPPER_BOUNDS)
-    return LEVEL_NAMES[idx], LEVEL_BONUSES[idx]
+    return LEVEL_NAMES[idx], REFERRAL_LEVEL_BONUSES[idx]
 
 
 def get_level_by_group_adds(group_adds: int):
     idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS)
-    return LEVEL_NAMES[idx], LEVEL_BONUSES[idx]
+    return LEVEL_NAMES[idx], GROUP_LEVEL_BONUSES[idx]
 
 
 def get_combined_level(refs: int, group_adds: int) -> str:
@@ -97,7 +103,7 @@ def get_total_earned_until_refs(refs: int):
     total = 0
     prev = 0
     for i, upper in enumerate(REFERRAL_UPPER_BOUNDS):
-        per_ref = LEVEL_BONUSES[i]
+        per_ref = REFERRAL_LEVEL_BONUSES[i]
         if upper == float("inf"):
             total += max(0, refs - prev) * per_ref
             break
