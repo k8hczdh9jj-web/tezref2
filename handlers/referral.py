@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import Router, types, F
 from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
@@ -226,27 +228,38 @@ async def track_group_added_members(message: types.Message):
             total_bonus += per_user_bonus
 
     if credited_count > 0:
+        extra_lines = []
+        if skipped_already_counted > 0:
+            extra_lines.append(f"⚠️ Avval hisoblanganlar: <b>{skipped_already_counted}</b>")
+        if skipped_self_join_count > 0:
+            extra_lines.append(
+                f"ℹ️ Link orqali o'zi kirganlar (hisoblanmaydi): <b>{skipped_self_join_count}</b>"
+            )
+
+        extra_text = "\n" + "\n".join(extra_lines) if extra_lines else ""
+        notify_text = (
+            "🎉 Guruhga qo'shganingiz uchun bonus!\n"
+            f"👥 Hisoblangan odamlar: <b>{credited_count}</b>\n"
+            f"💰 Jami bonus: <b>{total_bonus} so'm</b>"
+            f"{extra_text}"
+        )
+
         try:
-            extra_lines = []
-            if skipped_already_counted > 0:
-                extra_lines.append(f"⚠️ Avval hisoblanganlar: <b>{skipped_already_counted}</b>")
-            if skipped_self_join_count > 0:
-                extra_lines.append(
-                    f"ℹ️ Link orqali o'zi kirganlar (hisoblanmaydi): <b>{skipped_self_join_count}</b>"
-                )
-
-            extra_text = "\n" + "\n".join(extra_lines) if extra_lines else ""
-
             await message.bot.send_message(
                 inviter_id,
-                f"🎉 Guruhga qo'shganingiz uchun bonus!\n"
-                f"👥 Hisoblangan odamlar: <b>{credited_count}</b>\n"
-                f"💰 Jami bonus: <b>{total_bonus} so'm</b>"
-                f"{extra_text}",
+                notify_text,
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
-            pass
+            try:
+                fallback_msg = await message.reply(
+                    "ℹ️ Shaxsiy xabar yuborilmadi, natija shu yerda:\n\n" + notify_text,
+                    parse_mode=ParseMode.HTML,
+                )
+                await asyncio.sleep(12)
+                await fallback_msg.delete()
+            except Exception:
+                pass
     elif (skipped_self_join_count + skipped_already_counted) > 0:
         try:
             reason_lines = ["ℹ️ Bu qo'shilishda bonus berilmadi."]
