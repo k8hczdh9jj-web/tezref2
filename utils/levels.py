@@ -19,9 +19,6 @@ LEVEL_NAMES = [
     "Diamond 6",
 ]
 
-# Guruh qo'shish darajaga ta'sir qilishi uchun minimal referal soni.
-MIN_REFERRALS_FOR_GROUP_LEVEL = 3
-
 # Referral oralig'i o'zgarmaydi (oldingi mantiq saqlandi)
 REFERRAL_UPPER_BOUNDS = [
     3,
@@ -98,8 +95,9 @@ def get_level_by_group_adds(group_adds: int):
 
 def get_combined_level(refs: int, group_adds: int) -> str:
     ref_idx = _level_index_by_value(refs, REFERRAL_UPPER_BOUNDS)
-    group_idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS) if refs >= MIN_REFERRALS_FOR_GROUP_LEVEL else 0
-    return LEVEL_NAMES[max(ref_idx, group_idx)]
+    group_idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS)
+    # Daraja faqat ikkala metrika ham bajarilganda oshadi: eng kichik indeks olinadi.
+    return LEVEL_NAMES[min(ref_idx, group_idx)]
 
 
 def _metric_progress(value: int, upper_bounds: list, idx: int) -> float:
@@ -119,17 +117,14 @@ def _metric_progress(value: int, upper_bounds: list, idx: int) -> float:
 
 def get_level_progress(refs: int, group_adds: int) -> dict:
     ref_idx = _level_index_by_value(refs, REFERRAL_UPPER_BOUNDS)
-    group_locked = refs < MIN_REFERRALS_FOR_GROUP_LEVEL
-    group_idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS) if not group_locked else 0
-    current_idx = max(ref_idx, group_idx)
+    group_idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS)
+    current_idx = min(ref_idx, group_idx)
 
-    if group_locked:
-        progress = _metric_progress(refs, REFERRAL_UPPER_BOUNDS, current_idx)
-    else:
-        progress = max(
-            _metric_progress(refs, REFERRAL_UPPER_BOUNDS, current_idx),
-            _metric_progress(group_adds, GROUP_UPPER_BOUNDS, current_idx),
-        )
+    # Keyingi daraja uchun ikkala tomondan ham o'sish kerak, shuning uchun progress ham bottleneck bo'yicha olinadi.
+    progress = min(
+        _metric_progress(refs, REFERRAL_UPPER_BOUNDS, current_idx),
+        _metric_progress(group_adds, GROUP_UPPER_BOUNDS, current_idx),
+    )
 
     max_idx = len(LEVEL_NAMES) - 1
     if current_idx >= max_idx:
@@ -138,8 +133,6 @@ def get_level_progress(refs: int, group_adds: int) -> dict:
             "next_level": None,
             "needed_refs": 0,
             "needed_group_adds": 0,
-            "group_locked": group_locked,
-            "min_refs_for_group_level": MIN_REFERRALS_FOR_GROUP_LEVEL,
             "progress": 1.0,
         }
 
@@ -153,9 +146,7 @@ def get_level_progress(refs: int, group_adds: int) -> dict:
         "current_level": LEVEL_NAMES[current_idx],
         "next_level": LEVEL_NAMES[current_idx + 1],
         "needed_refs": needed_refs,
-        "needed_group_adds": needed_group_adds if not group_locked else None,
-        "group_locked": group_locked,
-        "min_refs_for_group_level": MIN_REFERRALS_FOR_GROUP_LEVEL,
+        "needed_group_adds": needed_group_adds,
         "progress": progress,
     }
 
