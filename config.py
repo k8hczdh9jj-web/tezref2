@@ -31,10 +31,9 @@ if not API_TOKEN:
 ADMIN_ID = int(os.getenv("ADMIN_ID", "496829881"))
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "tezref_admin1")
 
-# Obuna bo‘lish kerak bo‘lgan Telegram kanal usernames
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@tezrefofficial")
-CHANNEL_USERNAME_2 = os.getenv("CHANNEL_USERNAME_2", "@tezrefpromo")
-CHANNEL_ID_2 = int(os.getenv("CHANNEL_ID_2", "-1003276045866"))
+# Majburiy obuna uchun bitta kanal sozlamasi
+REQUIRED_CHANNEL_LINK = os.getenv("REQUIRED_CHANNEL_LINK", "https://t.me/+A4mfTNwLy5ExYTJi")
+REQUIRED_CHANNEL_ID = int(os.getenv("REQUIRED_CHANNEL_ID", os.getenv("CHANNEL_ID_2", "0")))
 
 WORK_GROUP_NAME = os.getenv("WORK_GROUP_NAME", "TezRef Official 2.0")
 WORK_GROUP_LINK = os.getenv("WORK_GROUP_LINK", "")

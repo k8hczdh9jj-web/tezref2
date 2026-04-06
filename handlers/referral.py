@@ -2,9 +2,9 @@ from aiogram import Router, types, F
 from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
-from utils.channel_check import is_member_channel_1
+from utils.channel_check import is_member_required_channel
 from urllib.parse import quote
-from config import ADMIN_ID, WORK_GROUP_NAME, WORK_GROUP_LINK, WORK_GROUP_ID
+from config import ADMIN_ID, REQUIRED_CHANNEL_LINK, WORK_GROUP_NAME, WORK_GROUP_LINK, WORK_GROUP_ID
 from database import get_db_pool
 from utils.levels import get_level_by_group_adds, get_combined_level
 
@@ -21,6 +21,17 @@ def earning_menu() -> ReplyKeyboardMarkup:
 
 @router.message(F.text == "💸 Pul ishlash")
 async def open_earning_menu(message: types.Message):
+    if not await is_member_required_channel(message.bot, message.from_user.id):
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Kanalga obuna bo‘lish", url=REQUIRED_CHANNEL_LINK)],
+            [InlineKeyboardButton(text="✅ A’zo bo‘ldim", callback_data="check_subs_earning")],
+        ])
+        await message.answer(
+            "⚠️ Pul ishlash bo'limi uchun avval kanalga a’zo bo‘ling:",
+            reply_markup=markup,
+        )
+        return
+
     await message.answer(
         "💸 Pul ishlash bo'limi. Kerakli yo'nalishni tanlang:",
         reply_markup=earning_menu(),
@@ -37,14 +48,6 @@ async def back_to_main_menu(message: types.Message):
 @router.message(F.text == "🔗 Referal havola orqali")
 async def referral_link(message: types.Message):
     user_id = message.from_user.id
-
-    # Kanalga a’zo ekanligini tekshirish
-    if not await is_member_channel_1(message.bot, user_id):
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Kanalga obuna bo‘lish", url=f"https://t.me/tezrefofficial")],
-            [InlineKeyboardButton(text="✅ A’zo bo‘ldim", callback_data="check_subs_referral")]
-        ])
-        return await message.answer("⚠️ Botdan foydalanish uchun kanalga a’zo bo‘ling:", reply_markup=markup)
 
     me = await message.bot.get_me()
     link = f"https://t.me/{me.username}?start={user_id}"
@@ -235,38 +238,15 @@ async def track_group_added_members(message: types.Message):
             pass
 
 
-@router.callback_query(F.data == "check_subs_referral")
+@router.callback_query(F.data == "check_subs_earning")
 async def check_subscription(callback: types.CallbackQuery):
     user_id = callback.from_user.id
 
-    if await is_member_channel_1(callback.bot, user_id):
-        me = await callback.bot.get_me()
-        link = f"https://t.me/{me.username}?start={user_id}"
-
-        share_text = (
-            "Salom! Men TezRef botda pul ishlayapman.\n\n"
-            "✅ Botga kirish uchun quyidagi havolani bosing:\n"
-            f"{link}\n\n"
-            "🎁 Siz shu havola orqali kirsangiz, menga bonus tushadi."
-        )
-        share_url = (
-            "https://t.me/share/url"
-            f"?url={quote(link, safe='')}"
-            f"&text={quote(share_text, safe='')}"
-        )
-
-        markup = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="📤 Do'stga yuborish", url=share_url)]
-            ]
-        )
-
-        await callback.message.edit_text(
-            f"✅ A’zo bo‘lganingiz uchun rahmat!\n\n"
-            f"🔗 <a href='{link}'>Taklif havolasini ochish</a>\n\n"
-            "Do'stingiz shu havola orqali botga kirsa, sizga bonus tushadi.",
-            parse_mode=ParseMode.HTML,
-            reply_markup=markup,
+    if await is_member_required_channel(callback.bot, user_id):
+        await callback.message.edit_text("✅ A’zo bo‘lganingiz uchun rahmat!")
+        await callback.message.answer(
+            "💸 Pul ishlash bo'limi. Kerakli yo'nalishni tanlang:",
+            reply_markup=earning_menu(),
         )
     else:
         await callback.answer("❌ Siz hali kanalga a’zo bo‘lmagansiz!", show_alert=True)

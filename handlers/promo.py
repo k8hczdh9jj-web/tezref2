@@ -2,8 +2,8 @@ from aiogram import Router, types, F, Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from utils.channel_check import is_member_channel_2
-from config import CHANNEL_USERNAME_2, ADMIN_ID
+from utils.channel_check import is_member_required_channel
+from config import REQUIRED_CHANNEL_LINK, ADMIN_ID
 from database import get_db_pool 
 from asyncpg import UniqueViolationError
 
@@ -20,7 +20,7 @@ class PromoState(StatesGroup):
 @router.message(F.text.lower() == "🎁 promokod")
 async def show_promocode_menu(message: types.Message):
     buttons = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📥 Promokodni olish", url=f"https://t.me/{CHANNEL_USERNAME_2.replace('@','')}")],
+        [InlineKeyboardButton(text="📥 Kanalga obuna bo'lish", url=REQUIRED_CHANNEL_LINK)],
         [InlineKeyboardButton(text="✏️ Promokodni terish", callback_data="enter_promo")]
     ])
     await message.answer("🎁 Promokod bo‘limi:", reply_markup=buttons)
@@ -30,21 +30,13 @@ async def show_promocode_menu(message: types.Message):
 @router.callback_query(lambda c: c.data == "enter_promo")
 async def enter_promo(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
     user_id = callback.from_user.id
-    try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME_2, user_id)
-        if member.status in ['left', 'kicked']:
-            markup = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="📢 Kanalga obuna bo‘lish", url=f"https://t.me/{CHANNEL_USERNAME_2.replace('@','')}")]
-            ])
-            await callback.message.edit_text(
-                "⚠️ Promokodni kiritish uchun kanalga a’zo bo‘ling:",
-                reply_markup=markup
-            )
-            return
-    except:
+    if not await is_member_required_channel(bot, user_id):
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Kanalga obuna bo‘lish", url=REQUIRED_CHANNEL_LINK)]
+        ])
         await callback.message.edit_text(
-            "⚠️ Kanalga a'zoligingizni tekshirib bo‘lmadi.",
-            reply_markup=None
+            "⚠️ Promokodni kiritish uchun kanalga a’zo bo‘ling:",
+            reply_markup=markup
         )
         return
 
