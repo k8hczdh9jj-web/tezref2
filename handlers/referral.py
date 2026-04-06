@@ -297,6 +297,20 @@ async def track_group_added_members(message: types.Message):
         pass
 
 
+@router.message(F.left_chat_member)
+async def delete_left_member_service_message(message: types.Message):
+    if message.chat.type not in {"group", "supergroup"}:
+        return
+
+    if not WORK_GROUP_ID or message.chat.id != WORK_GROUP_ID:
+        return
+
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+
 @router.callback_query(F.data == "check_subs_earning")
 async def check_subscription(callback: types.CallbackQuery):
     user_id = callback.from_user.id
