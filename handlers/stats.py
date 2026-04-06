@@ -80,14 +80,25 @@ async def my_level_cmd(message: types.Message):
         )
         return
 
+    if progress_data.get("group_locked"):
+        requirement_text = (
+            f"• 👥 Yana <b>{progress_data['needed_refs']}</b> ta referal\n\n"
+            f"🔒 Guruh orqali daraja oshishi vaqtincha yopiq. "
+            f"Avval kamida <b>{progress_data['min_refs_for_group_level']}</b> ta referal to'plang.\n\n"
+        )
+    else:
+        requirement_text = (
+            f"• 👥 Yana <b>{progress_data['needed_refs']}</b> ta referal\n"
+            f"yoki\n"
+            f"• 👤 Yana <b>{progress_data['needed_group_adds']}</b> ta odamni guruhga qo'shish\n\n"
+        )
+
     await message.answer(
         "📈 <b>Mening darajam</b>\n\n"
         f"🏅 Hozirgi darajangiz: <b>{current_level}</b>\n"
         f"🎯 Keyingi daraja: <b>{progress_data['next_level']}</b>\n\n"
         "Keyingi darajaga chiqish uchun:\n"
-        f"• 👥 Yana <b>{progress_data['needed_refs']}</b> ta referal\n"
-        f"yoki\n"
-        f"• 👤 Yana <b>{progress_data['needed_group_adds']}</b> ta odamni guruhga qo'shish\n\n"
+        f"{requirement_text}"
         "⏳ Daraja progressi:\n"
         f"<code>{bar}</code> <b>{percent}%</b>\n"
         f"🔜 Keyingi darajagacha: <b>{remaining_percent}%</b>",
