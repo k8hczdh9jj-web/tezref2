@@ -6,7 +6,7 @@ from utils.channel_check import is_member_channel_1
 from urllib.parse import quote
 from config import ADMIN_ID, WORK_GROUP_NAME, WORK_GROUP_LINK, WORK_GROUP_ID
 from database import get_db_pool
-from utils.levels import get_level_by_refs
+from utils.levels import get_level_by_group_adds, get_combined_level
 
 router = Router()
 
@@ -84,12 +84,12 @@ async def group_invite_bonus_info(message: types.Message):
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow(
-            "SELECT group_added_count FROM users WHERE user_id = $1",
+            "SELECT COALESCE(group_added_count, 0) AS group_added_count FROM users WHERE user_id = $1",
             message.from_user.id,
         )
 
     added_count = user["group_added_count"] if user and user["group_added_count"] is not None else 0
-    _, next_bonus = get_level_by_refs(added_count + 1)
+    _, next_bonus = get_level_by_group_adds(added_count + 1)
 
     group_id_text = f"<code>{WORK_GROUP_ID}</code>" if WORK_GROUP_ID else "hali o'rnatilmagan"
     group_link_text = WORK_GROUP_LINK if WORK_GROUP_LINK else "(link hali berilmagan)"
@@ -175,7 +175,15 @@ async def track_group_added_members(message: types.Message):
                 "SELECT COALESCE(group_added_count, 0) FROM users WHERE user_id = $1",
                 inviter_id,
             )
-            _, per_user_bonus = get_level_by_refs(current_added + 1)
+            _, per_user_bonus = get_level_by_group_adds(current_added + 1)
+
+            current_refs = await conn.fetchval(
+                "SELECT COALESCE(referrals, 0) FROM users WHERE user_id = $1",
+                inviter_id,
+            )
+
+            new_group_count = current_added + 1
+            new_level = get_combined_level(current_refs, new_group_count)
 
             inserted = await conn.fetchval(
                 """
@@ -202,10 +210,12 @@ async def track_group_added_members(message: types.Message):
                 """
                 UPDATE users
                 SET group_added_count = COALESCE(group_added_count, 0) + 1,
-                    balance = balance + $1
-                WHERE user_id = $2
+                    balance = balance + $1,
+                    level = $2
+                WHERE user_id = $3
                 """,
                 per_user_bonus,
+                new_level,
                 inviter_id,
             )
 

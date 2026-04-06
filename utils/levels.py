@@ -1,55 +1,107 @@
-# levels.py 
+# levels.py
 
-TEAM_LEVELS = [
-    ("Oddiy", 0, 5), ("Bronza",6,20), ("Silver",21,80),
-    ("Gold",81,200), ("Platina 1",201,350), ("Platina 2",351,600),
-    ("Platina 3",601,1000), ("Platina 4",1001,1500), ("Platina 5",1501,2200),
-    ("Platina 6",2201,4000), ("Diamond 1",4001,6500), ("Diamond 2",6501,10000),
-    ("Diamond 3",10001,15000), ("Diamond 4",15001,25000), ("Diamond 5",25001,40000),
-    ("Diamond 6",40001,float('inf'))
+LEVEL_NAMES = [
+    "Oddiy",
+    "Bronza",
+    "Silver",
+    "Gold",
+    "Platina 1",
+    "Platina 2",
+    "Platina 3",
+    "Platina 4",
+    "Platina 5",
+    "Platina 6",
+    "Diamond 1",
+    "Diamond 2",
+    "Diamond 3",
+    "Diamond 4",
+    "Diamond 5",
+    "Diamond 6",
 ]
 
-def get_team_level(member_count: int):
-    for name, start, end in TEAM_LEVELS:
-        if start <= member_count <= end:
-            return name
-    return TEAM_LEVELS[-1][0]
-
-
-level = [
-    ("Oddiy", 3, 1500),
-    ("Bronza", 10, 1750),
-    ("Silver", 50, 2250),
-    ("Gold", 200, 2500),
-    ("Platina 1", 350, 2000),
-    ("Platina 2", 550, 2000),
-    ("Platina 3", 800, 2000),
-    ("Platina 4", 1100, 2000),
-    ("Platina 5", 1500, 2000),
-    ("Platina 6", 4000, 2000),
-    ("Diamond 1", 10000, 2000),
-    ("Diamond 2", 18000, 4000),
-    ("Diamond 3", 28000, 4000),
-    ("Diamond 4", 40000, 4000),
-    ("Diamond 5", 60000, 4000),
-    ("Diamond 6", float('inf'), 4000),
+# Referral oralig'i o'zgarmaydi (oldingi mantiq saqlandi)
+REFERRAL_UPPER_BOUNDS = [
+    3,
+    10,
+    50,
+    200,
+    350,
+    550,
+    800,
+    1100,
+    1500,
+    4000,
+    10000,
+    18000,
+    28000,
+    40000,
+    60000,
+    float("inf"),
 ]
+
+# Guruhga odam qo'shish oralig'i (siz bergan qoidaga mos)
+GROUP_UPPER_BOUNDS = [
+    10,
+    30,
+    60,
+    120,
+    240,
+    480,
+    960,
+    1920,
+    3840,
+    7680,
+    15360,
+    30720,
+    61440,
+    122880,
+    245760,
+    float("inf"),
+]
+
+
+def _bonus_by_level_index(index: int) -> int:
+    # 1-daraja 800, Goldgacha +50, Platina va Diamond bosqichlarida +100
+    if index <= 3:
+        return 800 + (index * 50)
+    return 1050 + ((index - 4) * 100)
+
+
+LEVEL_BONUSES = [_bonus_by_level_index(i) for i in range(len(LEVEL_NAMES))]
+
+
+def _level_index_by_value(value: int, upper_bounds: list) -> int:
+    for i, upper in enumerate(upper_bounds):
+        if value < upper:
+            return i
+    return len(upper_bounds) - 1
 
 
 def get_level_by_refs(refs: int):
-    for name, upper, per_ref in level:
-        if refs < upper:
-            return name, per_ref
-    return level[-1][0], level[-1][2]
+    idx = _level_index_by_value(refs, REFERRAL_UPPER_BOUNDS)
+    return LEVEL_NAMES[idx], LEVEL_BONUSES[idx]
+
+
+def get_level_by_group_adds(group_adds: int):
+    idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS)
+    return LEVEL_NAMES[idx], LEVEL_BONUSES[idx]
+
+
+def get_combined_level(refs: int, group_adds: int) -> str:
+    ref_idx = _level_index_by_value(refs, REFERRAL_UPPER_BOUNDS)
+    group_idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS)
+    return LEVEL_NAMES[max(ref_idx, group_idx)]
 
 
 def get_total_earned_until_refs(refs: int):
-    total, prev = 0, 0
-    for name, upper, per_ref in level:
-        if upper == float('inf'):
+    total = 0
+    prev = 0
+    for i, upper in enumerate(REFERRAL_UPPER_BOUNDS):
+        per_ref = LEVEL_BONUSES[i]
+        if upper == float("inf"):
             total += max(0, refs - prev) * per_ref
             break
-        else:
-            total += max(0, min(refs, upper) - prev) * per_ref
-            prev = upper
+
+        total += max(0, min(refs, upper) - prev) * per_ref
+        prev = upper
     return total

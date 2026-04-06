@@ -4,7 +4,7 @@ from aiogram import Router, types, F
 from aiogram.filters import CommandStart
 from aiogram.enums import ParseMode
 from database import get_db_pool # init_db ni import qilish shart emas
-from utils.levels import get_level_by_refs
+from utils.levels import get_level_by_refs, get_combined_level
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton # main_menu uchun
 from utils.phone_gate import phone_request_keyboard
 
@@ -31,12 +31,21 @@ async def register_user(conn, user_id, username, invited_by=None):
 
     # Agar referal orqali kirgan bo‘lsa bonus (faqat yangi qo'shilganlar uchun)
     if invited_by and invited_by != user_id:
-        inviter = await conn.fetchrow("SELECT * FROM users WHERE user_id=$1", invited_by)
+        inviter = await conn.fetchrow(
+            """
+            SELECT referrals, balance, COALESCE(group_added_count, 0) AS group_added_count
+            FROM users
+            WHERE user_id=$1
+            """,
+            invited_by,
+        )
         if inviter:
             # Referal bonus mantiqi
             total_refs = inviter["referrals"] + 1
-            new_level, per_ref = get_level_by_refs(total_refs)
+            _, per_ref = get_level_by_refs(total_refs)
             new_balance = inviter["balance"] + per_ref
+            group_added_count = inviter["group_added_count"]
+            new_level = get_combined_level(total_refs, group_added_count)
 
             await conn.execute("""
                 UPDATE users
