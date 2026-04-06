@@ -231,6 +231,12 @@ async def track_group_added_members(message: types.Message):
         except Exception:
             pass
 
+    # Guruhdagi service xabarni avtomatik o'chiramiz (hisoblash tugagandan keyin).
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
 
 @router.callback_query(F.data == "check_subs_earning")
 async def check_subscription(callback: types.CallbackQuery):
