@@ -19,6 +19,7 @@ from handlers import (
     rating_router,   # user/fake reyting
     admin_broadcast_router,
     admin_ads_router,
+    admin_bonus_router,
 )
 
 # Fallback router (Router bo'lishi shart!)
@@ -47,6 +48,7 @@ dp.include_router(withdraw_router)
 dp.include_router(rating_router)        # user/fake reyting (bosh menyu)
 dp.include_router(admin_broadcast_router) 
 dp.include_router(admin_ads_router)
+dp.include_router(admin_bonus_router)
 dp.include_router(fallback_router)      # fallback oxiriga
 
 async def main():

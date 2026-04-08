@@ -5,3 +5,7 @@ class AdsState(StatesGroup):
 
 class AdsLinkState(StatesGroup):
     waiting_for_new_link = State()
+
+
+class BonusChangeState(StatesGroup):
+    waiting_for_delta = State()

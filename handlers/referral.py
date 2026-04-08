@@ -87,14 +87,21 @@ async def referral_link(message: types.Message):
 @router.message(F.text == "👥 Guruhga do'st qo'shish orqali")
 async def group_invite_bonus_info(message: types.Message):
     pool = await get_db_pool()
+    group_bonus_delta = 0
+
     async with pool.acquire() as conn:
+        cfg = await conn.fetchrow(
+            "SELECT group_bonus_delta FROM bonus_config WHERE id = 1"
+        )
+        group_bonus_delta = int(cfg["group_bonus_delta"] or 0) if cfg else 0
+
         user = await conn.fetchrow(
             "SELECT COALESCE(group_added_count, 0) AS group_added_count FROM users WHERE user_id = $1",
             message.from_user.id,
         )
 
     added_count = user["group_added_count"] if user and user["group_added_count"] is not None else 0
-    _, next_bonus = get_level_by_group_adds(added_count + 1)
+    _, next_bonus = get_level_by_group_adds(added_count + 1, group_bonus_delta)
 
     buttons = []
     if WORK_GROUP_LINK:
@@ -151,7 +158,14 @@ async def track_group_added_members(message: types.Message):
     skipped_already_counted = 0
 
     pool = await get_db_pool()
+    group_bonus_delta = 0
+
     async with pool.acquire() as conn:
+        cfg = await conn.fetchrow(
+            "SELECT group_bonus_delta FROM bonus_config WHERE id = 1"
+        )
+        group_bonus_delta = int(cfg["group_bonus_delta"] or 0) if cfg else 0
+
         await conn.execute(
             """
             INSERT INTO users (user_id, username, ref_code)
@@ -179,7 +193,7 @@ async def track_group_added_members(message: types.Message):
                 "SELECT COALESCE(group_added_count, 0) FROM users WHERE user_id = $1",
                 inviter_id,
             )
-            _, per_user_bonus = get_level_by_group_adds(current_added + 1)
+            _, per_user_bonus = get_level_by_group_adds(current_added + 1, group_bonus_delta)
 
             current_refs = await conn.fetchval(
                 "SELECT COALESCE(referrals, 0) FROM users WHERE user_id = $1",

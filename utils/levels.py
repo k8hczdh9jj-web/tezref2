@@ -76,6 +76,10 @@ REFERRAL_LEVEL_BONUSES = [_bonus_by_level_index(i) for i in range(len(LEVEL_NAME
 GROUP_LEVEL_BONUSES = [_group_bonus_by_level_index(i) for i in range(len(LEVEL_NAMES))]
 
 
+def _apply_bonus_delta(base_bonus: int, delta: int) -> int:
+    return max(0, int(base_bonus) + int(delta))
+
+
 def _level_index_by_value(value: int, upper_bounds: list) -> int:
     for i, upper in enumerate(upper_bounds):
         if value < upper:
@@ -83,14 +87,14 @@ def _level_index_by_value(value: int, upper_bounds: list) -> int:
     return len(upper_bounds) - 1
 
 
-def get_level_by_refs(refs: int):
+def get_level_by_refs(refs: int, referral_bonus_delta: int = 0):
     idx = _level_index_by_value(refs, REFERRAL_UPPER_BOUNDS)
-    return LEVEL_NAMES[idx], REFERRAL_LEVEL_BONUSES[idx]
+    return LEVEL_NAMES[idx], _apply_bonus_delta(REFERRAL_LEVEL_BONUSES[idx], referral_bonus_delta)
 
 
-def get_level_by_group_adds(group_adds: int):
+def get_level_by_group_adds(group_adds: int, group_bonus_delta: int = 0):
     idx = _level_index_by_value(group_adds, GROUP_UPPER_BOUNDS)
-    return LEVEL_NAMES[idx], GROUP_LEVEL_BONUSES[idx]
+    return LEVEL_NAMES[idx], _apply_bonus_delta(GROUP_LEVEL_BONUSES[idx], group_bonus_delta)
 
 
 def get_combined_level(refs: int, group_adds: int) -> str:

@@ -77,6 +77,21 @@ async def init_db(pool):
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS bonus_config (
+                id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+                referral_bonus_delta INTEGER NOT NULL DEFAULT 0,
+                group_bonus_delta INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT now()
+            )
+        """)
+
+        await conn.execute("""
+            INSERT INTO bonus_config (id, referral_bonus_delta, group_bonus_delta)
+            VALUES (1, 0, 0)
+            ON CONFLICT (id) DO NOTHING
+        """)
+
         # Team bo'limi olib tashlangani uchun eski team obyektlarini o'chiramiz
         await conn.execute("""
             ALTER TABLE users DROP COLUMN IF EXISTS team_id

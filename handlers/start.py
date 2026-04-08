@@ -77,6 +77,11 @@ async def register_user(conn, user_id, username, invited_by=None):
 
     # Agar referal orqali kirgan bo‘lsa bonus (faqat yangi qo'shilganlar uchun)
     if invited_by and invited_by != user_id:
+        cfg = await conn.fetchrow(
+            "SELECT referral_bonus_delta FROM bonus_config WHERE id = 1"
+        )
+        referral_bonus_delta = int(cfg["referral_bonus_delta"] or 0) if cfg else 0
+
         inviter = await conn.fetchrow(
             """
             SELECT referrals, balance, COALESCE(group_added_count, 0) AS group_added_count
@@ -88,7 +93,7 @@ async def register_user(conn, user_id, username, invited_by=None):
         if inviter:
             # Referal bonus mantiqi
             total_refs = inviter["referrals"] + 1
-            _, per_ref = get_level_by_refs(total_refs)
+            _, per_ref = get_level_by_refs(total_refs, referral_bonus_delta)
             new_balance = inviter["balance"] + per_ref
             group_added_count = inviter["group_added_count"]
             new_level = get_combined_level(total_refs, group_added_count)
